@@ -1,6 +1,6 @@
 # Basic configuration for the Provider Daemon
-instance_id: "provider-daemon-01" # Unique ID for this daemon instance (should be configurable, e.g. hostname or a UUID)
-log_level: "info"                 # debug, info, warn, error
+instance_id: "provider-daemon-m4max" # Unique ID for this daemon instance (simplified to avoid NATS consumer name issues)
+log_level: "debug"                # debug, info, warn, error - Changed to debug for troubleshooting
 request_timeout: "30s"            # General request timeout (e.g. for Provider Registry API calls)
 
 # NATS Configuration

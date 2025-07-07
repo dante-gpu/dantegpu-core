@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/tauri';
 import { listen, Event as TauriEvent } from '@tauri-apps/api/event';
 
 interface LogEntry {
-  id: number;
+  id: string;
   log_type: 'status' | 'stdout' | 'stderr' | 'error';
   message: string;
   timestamp: string;
@@ -378,6 +378,7 @@ function App() {
   const [systemInfo, setSystemInfo] = useState<string>('');
   const [processInfo, setProcessInfo] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [autoScroll, setAutoScroll] = useState<boolean>(true);
   const logsEndRef = useRef<null | HTMLDivElement>(null);
 
   // --- BEGIN NEW STATE VARIABLES ---
@@ -450,9 +451,14 @@ function App() {
   const [earningsRefreshInterval, setEarningsRefreshInterval] = useState<number | null>(null);
   // --- END NEW STATE VARIABLES ---
 
+  // Generate unique log ID with timestamp to prevent duplicates
+  const generateLogId = () => {
+    return `${Date.now()}-${logIdCounter++}-${Math.random().toString(36).substr(2, 9)}`;
+  };
+
   const addLog = (type: LogEntry['log_type'], message: string) => {
     const newLog: LogEntry = {
-      id: logIdCounter++,
+      id: generateLogId(),
       log_type: type,
       message,
       timestamp: new Date().toISOString(),
@@ -460,9 +466,17 @@ function App() {
     setDaemonLogs((prevLogs) => [...prevLogs.slice(-200), newLog]);
   };
 
+  // Controlled auto-scroll - only when user wants it
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [daemonLogs]);
+    if (autoScroll && logsEndRef.current) {
+      // Use setTimeout to debounce rapid log updates
+      const scrollTimer = setTimeout(() => {
+        logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+      
+      return () => clearTimeout(scrollTimer);
+    }
+  }, [daemonLogs, autoScroll]);
 
   useEffect(() => {
     const unlisteners: Array<() => void> = [];
@@ -475,15 +489,21 @@ function App() {
     // Enhanced daemon log listener with proper interface
     setupListener<LogEntry>('daemon_log', (event) => {
       const logEntry = event.payload;
-      setDaemonLogs((prevLogs) => [...prevLogs.slice(-200), logEntry]);
+      // Ensure unique ID for daemon logs too
+      const enhancedLogEntry = {
+        ...logEntry,
+        id: generateLogId(),
+      };
+      
+      setDaemonLogs((prevLogs) => [...prevLogs.slice(-200), enhancedLogEntry]);
       
       // Update daemon status based on log content
       if (logEntry.log_type === 'status') {
         setDaemonStatus(logEntry.message);
-        if (logEntry.message.includes(' All systems operational')) {
+        if (logEntry.message.includes('All systems operational') || logEntry.message.includes('started successfully')) {
           setDaemonActive(true);
           setDaemonError(null);
-        } else if (logEntry.message.includes('') || logEntry.message.includes('error')) {
+        } else if (logEntry.message.includes('error') || logEntry.message.includes('failed')) {
           setDaemonActive(false);
           setDaemonError(logEntry.message);
         }
@@ -569,20 +589,16 @@ function App() {
           addLog('status', `Daemon is ${data.daemon_status} - Services unavailable`);
         }
       } catch (err) {
-        addLog('error', `Failed to fetch integrated data: ${err}`);
-        setDaemonStatus('ERROR');
+        // Don't log every polling failure to avoid spam
+        console.log('Daemon not available, waiting...');
+        setDaemonStatus('OFFLINE');
         setDaemonActive(false);
-        setDaemonError(err as string);
       }
     };
 
-    // Set up automatic data fetching
+    // Set up automatic data fetching with less frequent polling
     fetchIntegratedData();
-    const dataInterval = setInterval(fetchIntegratedData, 3000); // Check every 3 seconds
-
-    // TODO: Consider adding listeners for real-time updates to this data if backend supports it.
-    // e.g., await listen('gpu-update', (event) => { setGpus(event.payload); });
-     // --- END FETCHING INTEGRATED DATA ---
+    const dataInterval = setInterval(fetchIntegratedData, 5000); // Check every 5 seconds
 
     return () => {
       unlisteners.forEach(unlisten => unlisten());
@@ -591,19 +607,41 @@ function App() {
   }, []); // Run once on mount and set up polling
 
   const handleStartDaemon = async () => {
-    addLog('status', 'Attempting to start daemon...');
+    addLog('status', '🚀 Starting daemon... Please wait');
     setDaemonError(null);
     setIsLoading(true);
+    
     try {
-      const result = await invoke('start_daemon');
-      addLog('status', `Success: ${result}`);
+      // Add timeout for daemon start operation
+      const startPromise = invoke('start_daemon');
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Daemon start timeout after 30 seconds')), 30000)
+      );
+      
+      const result = await Promise.race([startPromise, timeoutPromise]);
+      addLog('status', `✅ Success: ${result}`);
+      
+      // Give some time for daemon to initialize
+      setTimeout(() => {
+        addLog('status', 'Checking daemon status...');
+      }, 2000);
+      
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      const UImessage = `Failed to send start command: ${errorMessage}`;
-      setDaemonStatus(UImessage);
+      const uiMessage = `❌ Failed to start daemon: ${errorMessage}`;
+      setDaemonStatus('START_FAILED');
       setDaemonError(errorMessage);
       setDaemonActive(false);
-      addLog('error', UImessage);
+      addLog('error', uiMessage);
+      
+      // Provide helpful suggestions
+      if (errorMessage.includes('timeout')) {
+        addLog('status', '💡 Tip: Daemon startup may take longer on first run');
+      } else if (errorMessage.includes('permission')) {
+        addLog('status', '💡 Tip: May need administrator privileges');
+      } else if (errorMessage.includes('port')) {
+        addLog('status', '💡 Tip: Check if required ports are available');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -930,26 +968,47 @@ function App() {
     setShowJobModal(false);
   };
 
-  const formatCurrency = (amount: number, currency: 'usd' | 'dgpu') => {
+  const formatCurrency = (amount: number | null | undefined, currency: 'usd' | 'dgpu') => {
+    // Defensive programming: handle null, undefined, or invalid numbers
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      if (currency === 'usd') {
+        return '$0.00';
+      } else {
+        return '0.00 DGPU';
+      }
+    }
+    
+    // Ensure amount is a valid number
+    const safeAmount = typeof amount === 'number' ? amount : parseFloat(String(amount)) || 0;
+    
     if (currency === 'usd') {
-      return `$${amount.toFixed(2)}`;
+      return `$${safeAmount.toFixed(2)}`;
     } else {
-      return `${amount.toFixed(2)} DGPU`;
+      return `${safeAmount.toFixed(2)} DGPU`;
     }
   };
 
-  const formatDuration = (hours: number) => {
-    if (hours < 24) {
-      return `${hours}h`;
+  const formatDuration = (hours: number | null | undefined) => {
+    // Handle null/undefined hours
+    if (hours === null || hours === undefined || isNaN(hours)) {
+      return '0h';
+    }
+    
+    const safeHours = typeof hours === 'number' ? hours : parseFloat(String(hours)) || 0;
+    
+    if (safeHours < 24) {
+      return `${safeHours}h`;
     } else {
-      const days = Math.floor(hours / 24);
-      const remainingHours = hours % 24;
+      const days = Math.floor(safeHours / 24);
+      const remainingHours = safeHours % 24;
       return `${days}d ${remainingHours}h`;
     }
   };
 
-  const getBookingStatusColor = (status: string) => {
-    switch (status) {
+  const getBookingStatusColor = (status: string | null | undefined) => {
+    if (!status) return '#757575';
+    
+    switch (status.toLowerCase()) {
       case 'active': return '#4CAF50';
       case 'completed': return '#2196F3';
       case 'pending': return '#FF9800';
@@ -959,8 +1018,10 @@ function App() {
     }
   };
 
-  const getPaymentStatusColor = (status: string) => {
-    switch (status) {
+  const getPaymentStatusColor = (status: string | null | undefined) => {
+    if (!status) return '#757575';
+    
+    switch (status.toLowerCase()) {
       case 'paid': return '#4CAF50';
       case 'pending': return '#FF9800';
       case 'refunded': return '#2196F3';
@@ -2240,17 +2301,17 @@ function App() {
                     </>
                   ) : <p>Loading network info...</p>}
                 </div>
-                <div className="overview-item">
-                  <h4>Financial Summary</h4>
-                  {financialSummary ? (
-                    <>
-                      <p>Wallet Balance: {financialSummary.wallet_balance_dgpu.toFixed(2)} dGPU</p>
-                      <p>Total Earned: {financialSummary.total_earned_dgpu.toFixed(2)} dGPU</p>
-                      <p>Pending Payout: {financialSummary.pending_payout_dgpu.toFixed(2)} dGPU</p>
-                      {financialSummary.last_payout_at && <p>Last Payout: {new Date(financialSummary.last_payout_at).toLocaleString()}</p>}
-                    </>
-                  ) : <p>Loading financial summary...</p>}
-                </div>
+                            <div className="overview-item">
+              <h4>Financial Summary</h4>
+              {financialSummary ? (
+                <>
+                  <p>Wallet Balance: {formatCurrency(financialSummary.wallet_balance_dgpu, 'dgpu')}</p>
+                  <p>Total Earned: {formatCurrency(financialSummary.total_earned_dgpu, 'dgpu')}</p>
+                  <p>Pending Payout: {formatCurrency(financialSummary.pending_payout_dgpu, 'dgpu')}</p>
+                  {financialSummary.last_payout_at && <p>Last Payout: {new Date(financialSummary.last_payout_at).toLocaleString()}</p>}
+                </>
+              ) : <p>Loading financial summary...</p>}
+            </div>
               </>
             ) : (
               <p>Daemon is offline. Start the daemon to see system and financial overview.</p>
@@ -2384,9 +2445,9 @@ function App() {
               <h4>Financial Summary</h4>
               {financialSummary ? (
                 <>
-                  <p>Wallet Balance: {financialSummary.wallet_balance_dgpu.toFixed(2)} dGPU</p>
-                  <p>Total Earned: {financialSummary.total_earned_dgpu.toFixed(2)} dGPU</p>
-                  <p>Pending Payout: {financialSummary.pending_payout_dgpu.toFixed(2)} dGPU</p>
+                  <p>Wallet Balance: {formatCurrency(financialSummary.wallet_balance_dgpu, 'dgpu')}</p>
+                  <p>Total Earned: {formatCurrency(financialSummary.total_earned_dgpu, 'dgpu')}</p>
+                  <p>Pending Payout: {formatCurrency(financialSummary.pending_payout_dgpu, 'dgpu')}</p>
                   {financialSummary.last_payout_at && <p>Last Payout: {new Date(financialSummary.last_payout_at).toLocaleString()}</p>}
                 </>
               ) : <p>Loading financial summary...</p>}
@@ -2851,23 +2912,23 @@ function App() {
               <div className="financial-stats">
                 <div className="financial-stat">
                   <span className="stat-label">Wallet Balance:</span>
-                  <span className="stat-value">{financialSummary.wallet_balance_dgpu.toFixed(2)} dGPU</span>
+                  <span className="stat-value">{formatCurrency(financialSummary?.wallet_balance_dgpu, 'dgpu')}</span>
                 </div>
                 <div className="financial-stat">
                   <span className="stat-label">Total Earned:</span>
-                  <span className="stat-value">{financialSummary.total_earned_dgpu.toFixed(2)} dGPU</span>
+                  <span className="stat-value">{formatCurrency(financialSummary?.total_earned_dgpu, 'dgpu')}</span>
                 </div>
                 <div className="financial-stat">
                   <span className="stat-label">Pending Payout:</span>
-                  <span className="stat-value">{financialSummary.pending_payout_dgpu.toFixed(2)} dGPU</span>
+                  <span className="stat-value">{formatCurrency(financialSummary?.pending_payout_dgpu, 'dgpu')}</span>
                 </div>
               </div>
               <div className="management-actions">
                 <button onClick={() => handleViewChange('earnings')} className="action-btn success">
-                   View Full Earnings
+                  🔍 View Full Earnings
                 </button>
                 <button onClick={() => handleViewChange('provider-dashboard')} className="action-btn">
-                   Provider Stats
+                  📊 Provider Stats
                 </button>
               </div>
             </div>
@@ -2875,7 +2936,7 @@ function App() {
 
           {/* Network & Performance */}
           <div className="management-card network-card">
-            <h3> Network & Performance</h3>
+            <h3>🌐 Network & Performance</h3>
             <div className="network-stats">
               <div className="network-stat">
                 <span className="stat-label">Connection:</span>
@@ -2892,17 +2953,17 @@ function App() {
             </div>
             <div className="management-actions">
               <button onClick={handleCheckEnvironment} className="action-btn">
-                 Check Environment
+                🔍 Check Environment
               </button>
               <button onClick={handleGetProcessInfo} className="action-btn">
-                 Process Info
+                📋 Process Info
               </button>
             </div>
           </div>
 
           {/* Active Jobs Monitor */}
           <div className="management-card jobs-card">
-            <h3> Active Jobs Monitor</h3>
+            <h3>🎯 Active Jobs Monitor</h3>
             <div className="jobs-summary">
               <div className="job-summary-stat">
                 <span className="job-count">{localJobs.filter(j => j.status === 'running').length}</span>
@@ -2919,41 +2980,127 @@ function App() {
             </div>
             <div className="management-actions">
               <button onClick={() => handleViewChange('job-submission')} className="action-btn">
-                 Submit New Job
+                ➕ Submit New Job
               </button>
               <button onClick={() => handleViewChange('bookings')} className="action-btn">
-                 View All Jobs
+                📋 View All Jobs
               </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* === COMPACT STATUS BAR (REPLACED LARGE LOG SECTION) === */}
+      {/* === ENHANCED LOG SECTION (RESTORED FOR DEBUGGING) === */}
+      <section className="card logs-section">
+        <div className="logs-header">
+          <h2>🔍 System Logs & Debugging</h2>
+          <div className="log-actions">
+            <button 
+              onClick={() => setAutoScroll(!autoScroll)} 
+              className={`log-btn ${autoScroll ? 'success' : 'secondary'}`}
+              title={autoScroll ? 'Auto-scroll enabled' : 'Auto-scroll disabled'}
+            >
+              {autoScroll ? '📜 Auto-scroll ON' : '📜 Auto-scroll OFF'}
+            </button>
+            <button onClick={handleClearLogs} className="log-btn secondary">
+              🗑️ Clear Logs
+            </button>
+            <button onClick={() => {
+              const logData = daemonLogs.map(log => `[${log.timestamp}] [${log.log_type.toUpperCase()}] ${log.message}`).join('\n');
+              const blob = new Blob([logData], { type: 'text/plain' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'system-logs.txt';
+              a.click();
+            }} className="log-btn secondary">
+              💾 Export Logs
+            </button>
+            <button onClick={() => {
+              const errorLogs = daemonLogs.filter(log => log.log_type === 'error' || log.log_type === 'stderr');
+              if (errorLogs.length > 0) {
+                alert(`Found ${errorLogs.length} error entries:\n${errorLogs.slice(-3).map(log => log.message).join('\n')}`);
+              } else {
+                alert('No errors found in current logs');
+              }
+            }} className="log-btn warning">
+              ⚠️ Error Summary
+            </button>
+          </div>
+        </div>
+        
+        <div className="log-stats">
+          <div className="log-stat">
+            <span className="log-stat-count">{daemonLogs.length}</span>
+            <span className="log-stat-label">Total Logs</span>
+          </div>
+          <div className="log-stat">
+            <span className="log-stat-count">{daemonLogs.filter(log => log.log_type === 'error' || log.log_type === 'stderr').length}</span>
+            <span className="log-stat-label">Errors</span>
+          </div>
+          <div className="log-stat">
+            <span className="log-stat-count">{daemonLogs.filter(log => log.log_type === 'status').length}</span>
+            <span className="log-stat-label">Status Updates</span>
+          </div>
+        </div>
+
+        <div className="logs-container">
+          {daemonLogs.length > 0 ? (
+            daemonLogs.slice(-20).map((log) => (
+              <div key={log.id} className={`log-entry ${getLogClass(log.log_type)}`}>
+                <span className="log-timestamp">
+                  {new Date(log.timestamp).toLocaleTimeString()}
+                </span>
+                <span className="log-icon">{getLogIcon(log.log_type)}</span>
+                <span className="log-type">[{log.log_type.toUpperCase()}]</span>
+                <span className="log-message">{log.message}</span>
+              </div>
+            ))
+          ) : (
+            <div className="empty-logs">
+              <p>📝 No logs available. Start the daemon to see system activity.</p>
+            </div>
+          )}
+          <div ref={logsEndRef} />
+        </div>
+      </section>
+
+      {/* === COMPACT STATUS BAR === */}
       <section className="compact-status-bar">
         <div className="status-bar-content">
           <div className="status-info">
             <span className="status-text">
               {daemonActive ? 
-                ` System Online • ${gpus.length} GPU${gpus.length !== 1 ? 's' : ''} • ${localJobs.filter(j => j.status === 'running').length} Jobs Running` : 
-                ' System Offline'
+                `🟢 System Online • ${gpus.length} GPU${gpus.length !== 1 ? 's' : ''} • ${localJobs.filter(j => j.status === 'running').length} Jobs Running` : 
+                '🔴 System Offline'
               }
             </span>
           </div>
           <div className="status-actions">
             <button onClick={handleClearLogs} className="status-btn" title="Clear Logs">
-              
+              🗑️
             </button>
             <button onClick={() => {
               const lastLog = daemonLogs[daemonLogs.length - 1];
               if (lastLog) {
                 alert(`Latest: ${lastLog.message}`);
+              } else {
+                alert('No logs available');
               }
             }} className="status-btn" title="Show Latest Log">
-              
+              📄
             </button>
             <button onClick={handleGetSystemInfo} className="status-btn" title="System Info">
-              
+              ℹ️
+            </button>
+            <button onClick={() => {
+              if (daemonActive) {
+                alert('System is running normally. All services are operational.');
+              } else {
+                alert('System is offline. Click "Start Daemon" to begin.');
+              }
+            }} className="status-btn" title="System Status">
+              {daemonActive ? '✅' : '❌'}
             </button>
           </div>
         </div>

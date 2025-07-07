@@ -179,30 +179,42 @@ button.secondary:hover:not(:disabled) {
 }
 
 .logs-container {
-  background-color: hsl(240, 10%, 15%); /* Darker background for logs */
-  color: hsl(0, 0%, 95%); /* Light text for logs */
+  background: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%);
+  color: #f8f9fa;
   padding: 20px;
-  border-radius: var(--radius);
-  min-height: 60vh; /* Much larger height */
-  max-height: 70vh; /* Even larger max height */
+  margin: 0;
+  min-height: 300px;
+  max-height: 400px;
   overflow-y: auto;
   font-family: var(--font-family-mono);
-  font-size: 0.95em; /* Slightly larger font */
-  border: 1px solid var(--border);
-  margin-bottom: 20px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  border: none;
+  border-radius: 0;
+  position: relative;
 }
 
 .log-entry {
-  padding: 8px 0; /* More padding for better readability */
-  border-bottom: 1px solid hsl(240, 10%, 25%); /* Slightly lighter border for log entries */
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: 6px;
   display: flex;
-  align-items: center;
-  gap: 12px; /* More gap between elements */
+  align-items: flex-start;
+  gap: 12px;
+  transition: all 0.2s ease;
+  border-left: 3px solid transparent;
+  background: rgba(255, 255, 255, 0.02);
   margin-bottom: 2px; /* Small margin between entries */
+}
+
+.log-entry:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(4px);
 }
 
 .log-entry:last-child {
   border-bottom: none;
+  margin-bottom: 0;
 }
 
 .log-icon {
@@ -2399,5 +2411,347 @@ body {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* === ENHANCED LOG SECTION STYLES === */
+.logs-section {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 0;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.logs-header {
+  background: linear-gradient(135deg, #343a40 0%, #495057 100%);
+  color: white;
+  padding: 20px;
+  margin: 0;
+  border-bottom: 2px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.logs-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.log-btn {
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.log-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.log-btn.secondary {
+  background: rgba(108, 117, 125, 0.8);
+  border-color: rgba(108, 117, 125, 0.5);
+}
+
+.log-btn.warning {
+  background: rgba(255, 193, 7, 0.8);
+  border-color: rgba(255, 193, 7, 0.5);
+  color: #212529;
+}
+
+.log-stats {
+  background: rgba(248, 249, 250, 0.9);
+  border-bottom: 1px solid var(--border);
+  padding: 15px 20px;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.log-stat {
+  text-align: center;
+  min-width: 80px;
+}
+
+.log-stat-count {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
+.log-stat-label {
+  font-size: 0.8rem;
+  color: var(--muted-foreground);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.logs-container {
+  background: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%);
+  color: #f8f9fa;
+  padding: 20px;
+  margin: 0;
+  min-height: 300px;
+  max-height: 400px;
+  overflow-y: auto;
+  font-family: var(--font-family-mono);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  border: none;
+  border-radius: 0;
+  position: relative;
+}
+
+.logs-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 10px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.1), transparent);
+  pointer-events: none;
+}
+
+.logs-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.logs-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.logs-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.logs-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.log-entry {
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  transition: all 0.2s ease;
+  border-left: 3px solid transparent;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.log-entry:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(4px);
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.log-timestamp {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.8rem;
+  min-width: 80px;
+  font-weight: 500;
+}
+
+.log-icon {
+  font-size: 1rem;
+  min-width: 20px;
+  text-align: center;
+}
+
+.log-type {
+  font-weight: 600;
+  font-size: 0.8rem;
+  min-width: 70px;
+  text-align: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-family-mono);
+}
+
+.log-message {
+  flex: 1;
+  word-wrap: break-word;
+  line-height: 1.5;
+}
+
+.log-status {
+  border-left-color: #17a2b8;
+  background: rgba(23, 162, 184, 0.1);
+}
+
+.log-status .log-type {
+  background: rgba(23, 162, 184, 0.2);
+  color: #17a2b8;
+}
+
+.log-stdout {
+  border-left-color: #28a745;
+  background: rgba(40, 167, 69, 0.1);
+}
+
+.log-stdout .log-type {
+  background: rgba(40, 167, 69, 0.2);
+  color: #28a745;
+}
+
+.log-stderr {
+  border-left-color: #ffc107;
+  background: rgba(255, 193, 7, 0.1);
+}
+
+.log-stderr .log-type {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.log-error {
+  border-left-color: #dc3545;
+  background: rgba(220, 53, 69, 0.1);
+}
+
+.log-error .log-type {
+  background: rgba(220, 53, 69, 0.2);
+  color: #dc3545;
+}
+
+.empty-logs {
+  text-align: center;
+  padding: 40px 20px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.empty-logs p {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+/* Enhanced status bar styles */
+.compact-status-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, #343a40 0%, #495057 100%);
+  border-top: 2px solid var(--border);
+  padding: 8px 0;
+  z-index: 1000;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.status-bar-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+}
+
+.status-text {
+  color: white;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.status-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.status-btn {
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.3s ease;
+  min-width: 32px;
+  text-align: center;
+}
+
+.status-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .logs-header {
+    flex-direction: column;
+    gap: 10px;
+    text-align: center;
+  }
+  
+  .log-actions {
+    justify-content: center;
+  }
+  
+  .log-stats {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .log-entry {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .log-timestamp {
+    min-width: auto;
+  }
+  
+  .status-bar-content {
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+  }
+  
+  .status-text {
+    font-size: 0.8rem;
+    text-align: center;
+  }
+}
+
+/* === END ENHANCED LOG SECTION STYLES === */
 
 /* Add more global styles or component-specific styles in separate files */ 
