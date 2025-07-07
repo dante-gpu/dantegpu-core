@@ -1,0 +1,370 @@
+/* Professional Job Submission UI Styles */
+
+.job-submission-section {
+  background: #ffffff;
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.section-header h2 {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.section-header h3 {
+  margin: 0;
+  color: #34495e;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.system-status .status-indicator {
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-indicator.online {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.status-indicator.offline {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.job-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8f9fa;
+  padding: 8px 12px;
+  border-radius: 20px;
+  border: 1px solid #dee2e6;
+}
+
+.job-id-label {
+  font-size: 12px;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.job-id-value {
+  font-size: 12px;
+  color: #495057;
+  font-weight: 600;
+  font-family: 'Monaco', 'Menlo', monospace;
+}
+
+.jobs-count {
+  background: #e9ecef;
+  color: #495057;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.active-job-section {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.submitted-jobs-section {
+  background: #ffffff;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.job-item {
+  background: #ffffff;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.job-item:hover {
+  border-color: #007bff;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
+}
+
+.job-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.job-id {
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: #495057;
+}
+
+.job-status {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.job-status.verified {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.job-status.processing {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
+}
+
+.job-proof {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: #f8f9fa;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border-left: 3px solid #28a745;
+}
+
+.proof-label {
+  font-size: 12px;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.proof-hash {
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 12px;
+  color: #495057;
+  background: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.offline-submission-state {
+  text-align: center;
+  padding: 40px;
+  background: #f8f9fa;
+  border: 2px dashed #dee2e6;
+  border-radius: 8px;
+}
+
+.offline-message h4 {
+  color: #495057;
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.offline-message p {
+  color: #6c757d;
+  margin: 0 0 24px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.start-system-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.start-system-btn:hover {
+  background: #0056b3;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 123, 255, 0.2);
+}
+
+/* Proof of Work Improvements */
+.proof-of-work-container {
+  background: #ffffff;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+  padding: 20px;
+}
+
+.verification-status {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.status-icon {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.status-text {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.progress-bar {
+  background: #e9ecef;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.status-message {
+  font-size: 13px;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.current-benchmark {
+  background: #e7f3ff;
+  border: 1px solid #b3d9ff;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.current-benchmark h4 {
+  margin: 0;
+  font-size: 14px;
+  color: #0056b3;
+}
+
+.validation-status.valid {
+  color: #155724;
+  background: #d4edda;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.validation-status.invalid {
+  color: #721c24;
+  background: #f8d7da;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Payment Status Improvements */
+.payment-status {
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border-left: 4px solid;
+}
+
+.payment-status.completed {
+  background: #d4edda;
+  border-left-color: #28a745;
+}
+
+.payment-status.completed h4 {
+  color: #155724;
+  margin: 0 0 8px 0;
+  font-size: 16px;
+}
+
+.payment-status.pending {
+  background: #fff3cd;
+  border-left-color: #ffc107;
+}
+
+.payment-status.pending h4 {
+  color: #856404;
+  margin: 0 0 8px 0;
+  font-size: 16px;
+}
+
+.payment-status p {
+  margin: 4px 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.payment-status code {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .job-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .offline-submission-state {
+    padding: 24px 16px;
+  }
+} 

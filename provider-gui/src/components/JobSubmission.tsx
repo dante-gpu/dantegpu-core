@@ -601,13 +601,13 @@ export const JobSubmission: React.FC<JobSubmissionProps> = ({ onJobSubmitted, av
           {/* Payment Status */}
           {paymentCompleted ? (
             <div className="payment-status completed">
-              <h4>✅ Payment Completed</h4>
+              <h4>Payment Completed</h4>
               <p>Transaction Hash: <code>{paymentTransactionHash}</code></p>
               <p>Amount: {calculateJobCost().toFixed(2)} dGPU</p>
             </div>
           ) : (
             <div className="payment-status pending">
-              <h4>⏳ Payment Required</h4>
+              <h4>Payment Required</h4>
               <p>You must complete payment before submitting the job.</p>
               <p>Cost: {calculateJobCost().toFixed(2)} dGPU</p>
             </div>

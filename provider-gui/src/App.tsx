@@ -5,6 +5,7 @@ import { RealJobSubmission } from './components/RealJobSubmission';
 import { RealPhantomWallet } from './components/RealPhantomWallet';
 import { ProofOfWork } from './components/ProofOfWork';
 import { JobExecutionResults } from './components/JobExecutionResults';
+import './components/JobSubmissionUI.css';
 
 interface LogEntry {
   id: string;
@@ -2160,8 +2161,15 @@ function App() {
       {activeView === 'job-submission' && (
         <>
           {/* Job Submission with Proof of Work */}
-          <section className="card">
-            <h2>🚀 GPU Job Submission & Verification</h2>
+          <section className="card job-submission-section">
+            <div className="section-header">
+              <h2>GPU Job Submission & Verification</h2>
+              <div className="system-status">
+                <span className={`status-indicator ${daemonActive ? 'online' : 'offline'}`}>
+                  {daemonActive ? 'System Online' : 'System Offline'}
+                </span>
+              </div>
+            </div>
             {daemonActive ? (
               <>
                 <RealJobSubmission 
@@ -2172,7 +2180,13 @@ function App() {
                 {/* Active Job Proof of Work */}
                 {activeJobId && (
                   <div className="active-job-section">
-                    <h3>🔬 Active Job Verification</h3>
+                    <div className="section-header">
+                      <h3>Active Job Verification</h3>
+                      <div className="job-badge">
+                        <span className="job-id-label">Job ID:</span>
+                        <span className="job-id-value">#{activeJobId.slice(-8)}</span>
+                      </div>
+                    </div>
                     <ProofOfWork
                       jobId={activeJobId}
                       gpuId={gpus.length > 0 ? gpus[0].id : 'unknown'}
@@ -2185,19 +2199,25 @@ function App() {
                 {/* Submitted Jobs History */}
                 {submittedJobs.length > 0 && (
                   <div className="submitted-jobs-section">
-                    <h3>📝 Submitted Jobs</h3>
+                    <div className="section-header">
+                      <h3>Submitted Jobs History</h3>
+                      <div className="jobs-count">
+                        <span>{submittedJobs.length} job{submittedJobs.length !== 1 ? 's' : ''}</span>
+                      </div>
+                    </div>
                     <div className="jobs-list">
                       {submittedJobs.map((jobId) => (
                         <div key={jobId} className="job-item">
                           <div className="job-info">
                             <span className="job-id">Job #{jobId.slice(-8)}</span>
-                            <span className="job-status">
-                              {jobProofs.has(jobId) ? '✅ Verified' : '⏳ Processing'}
+                            <span className={`job-status ${jobProofs.has(jobId) ? 'verified' : 'processing'}`}>
+                              {jobProofs.has(jobId) ? 'Verified' : 'Processing'}
                             </span>
                           </div>
                           {jobProofs.has(jobId) && (
                             <div className="job-proof">
-                              <span>Proof Hash: {jobProofs.get(jobId)?.computeHash?.slice(0, 16)}...</span>
+                              <span className="proof-label">Proof Hash:</span>
+                              <span className="proof-hash">{jobProofs.get(jobId)?.computeHash?.slice(0, 16)}...</span>
                             </div>
                           )}
                         </div>
@@ -2208,9 +2228,12 @@ function App() {
               </>
             ) : (
               <div className="offline-submission-state">
-                <p>🚫 Job submission unavailable. System is offline.</p>
-                <button onClick={handleStartDaemon} className="cta-btn">
-                  🚀 Start System
+                <div className="offline-message">
+                  <h4>Job Submission Unavailable</h4>
+                  <p>The system is currently offline. Please start the daemon to access job submission features.</p>
+                </div>
+                <button onClick={handleStartDaemon} className="cta-btn start-system-btn">
+                  <span>Start System</span>
                 </button>
               </div>
             )}

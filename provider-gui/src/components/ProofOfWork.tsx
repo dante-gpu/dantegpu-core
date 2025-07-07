@@ -373,11 +373,11 @@ export const ProofOfWork: React.FC<ProofOfWorkProps> = ({ jobId, gpuId, onProofG
 
   const getStatusIcon = () => {
     switch (verificationStatus.status) {
-      case 'generating': return '⚙️';
-      case 'verifying': return '🔍';
-      case 'completed': return '✅';
-      case 'failed': return '❌';
-      default: return '⏳';
+      case 'generating': return '●';
+      case 'verifying': return '◐';
+      case 'completed': return '✓';
+      case 'failed': return '✗';
+      default: return '○';
     }
   };
 
@@ -428,7 +428,9 @@ export const ProofOfWork: React.FC<ProofOfWorkProps> = ({ jobId, gpuId, onProofG
                 <div className="result-header">
                   <span className="test-name">{result.testName}</span>
                   <span className={`result-status ${result.isValid ? 'valid' : 'invalid'}`}>
-                    {result.isValid ? '✅ Valid' : '❌ Invalid'}
+                                          <span className={`validation-status ${result.isValid ? 'valid' : 'invalid'}`}>
+                        {result.isValid ? 'Valid' : 'Invalid'}
+                      </span>
                   </span>
                 </div>
                 <div className="result-details">
