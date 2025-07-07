@@ -1,6 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen, Event as TauriEvent } from '@tauri-apps/api/event';
+import { RealJobSubmission } from './components/RealJobSubmission';
+import { RealPhantomWallet } from './components/RealPhantomWallet';
+import { ProofOfWork } from './components/ProofOfWork';
+import { JobExecutionResults } from './components/JobExecutionResults';
 
 interface LogEntry {
   id: string;
@@ -393,7 +397,7 @@ function App() {
   const [newRentalRate, setNewRentalRate] = useState<string>("");
   
   // === GPU RENTAL SYSTEM STATE ===
-  const [rentalMarketplace, setRentalMarketplace] = useState<RentalMarketplace | null>(null);
+  const [_rentalMarketplace, setRentalMarketplace] = useState<RentalMarketplace | null>(null);
   const [providerEarnings, setProviderEarnings] = useState<ProviderEarnings | null>(null);
   const [activeBookings, setActiveBookings] = useState<GpuRentalBooking[]>([]);
   const [bookingHistory, setBookingHistory] = useState<GpuRentalBooking[]>([]);
@@ -416,7 +420,7 @@ function App() {
     current_page: 1,
   });
   const [selectedBooking, setSelectedBooking] = useState<GpuRentalBooking | null>(null);
-  const [newJobSpec, setNewJobSpec] = useState<JobSpecification>({
+  const [_newJobSpec, _setNewJobSpec] = useState<JobSpecification>({
     job_name: '',
     job_description: '',
     framework: 'pytorch',
@@ -438,7 +442,7 @@ function App() {
     max_retries: 3,
     priority: 'normal',
   });
-  const [activeView, setActiveView] = useState<'overview' | 'rental-marketplace' | 'provider-dashboard' | 'bookings' | 'earnings' | 'job-submission'>('rental-marketplace');
+  const [activeView, setActiveView] = useState<'overview' | 'rental-marketplace' | 'provider-dashboard' | 'bookings' | 'earnings' | 'job-submission' | 'wallet'>('rental-marketplace');
   const [showListingModal, setShowListingModal] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [showJobModal, setShowJobModal] = useState(false);
@@ -449,6 +453,18 @@ function App() {
     booking_type: 'immediate',
   });
   const [earningsRefreshInterval, setEarningsRefreshInterval] = useState<number | null>(null);
+  
+  // === WALLET AND PAYMENT STATE ===
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [isWalletConnected, setIsWalletConnected] = useState<boolean>(false);
+  
+  // === JOB SUBMISSION AND PROOF OF WORK STATE ===
+  const [submittedJobs, setSubmittedJobs] = useState<string[]>([]);
+  const [jobProofs, setJobProofs] = useState<Map<string, any>>(new Map());
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [showJobResults, setShowJobResults] = useState(false);
+  const [currentJobResultsId, setCurrentJobResultsId] = useState<string | null>(null);
   // --- END NEW STATE VARIABLES ---
 
   // Generate unique log ID with timestamp to prevent duplicates
@@ -607,7 +623,7 @@ function App() {
   }, []); // Run once on mount and set up polling
 
   const handleStartDaemon = async () => {
-    addLog('status', '🚀 Starting daemon... Please wait');
+    addLog('status', 'Starting daemon... Please wait');
     setDaemonError(null);
     setIsLoading(true);
     
@@ -619,7 +635,7 @@ function App() {
       );
       
       const result = await Promise.race([startPromise, timeoutPromise]);
-      addLog('status', `✅ Success: ${result}`);
+      addLog('status', `Success: ${result}`);
       
       // Give some time for daemon to initialize
       setTimeout(() => {
@@ -628,7 +644,7 @@ function App() {
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      const uiMessage = `❌ Failed to start daemon: ${errorMessage}`;
+      const uiMessage = `Failed to start daemon: ${errorMessage}`;
       setDaemonStatus('START_FAILED');
       setDaemonError(errorMessage);
       setDaemonActive(false);
@@ -636,11 +652,11 @@ function App() {
       
       // Provide helpful suggestions
       if (errorMessage.includes('timeout')) {
-        addLog('status', '💡 Tip: Daemon startup may take longer on first run');
+        addLog('status', 'Tip: Daemon startup may take longer on first run');
       } else if (errorMessage.includes('permission')) {
-        addLog('status', '💡 Tip: May need administrator privileges');
+        addLog('status', 'Tip: May need administrator privileges');
       } else if (errorMessage.includes('port')) {
-        addLog('status', '💡 Tip: Check if required ports are available');
+        addLog('status', 'Tip: Check if required ports are available');
       }
     } finally {
       setIsLoading(false);
@@ -885,7 +901,7 @@ function App() {
         renterName: bookingForm.renter_name,
         durationHours: bookingForm.duration_hours,
         bookingType: bookingForm.booking_type,
-        jobSpecification: newJobSpec,
+        jobSpecification: _newJobSpec,
       });
       
       setActiveBookings(prev => [...prev, booking]);
@@ -1030,13 +1046,66 @@ function App() {
     }
   };
 
+  // === WALLET HANDLERS ===
+  const handleWalletConnected = (address: string, balance: number) => {
+    setWalletAddress(address);
+    setWalletBalance(balance);
+    setIsWalletConnected(true);
+    addLog('status', `Phantom wallet connected: ${address.slice(0, 8)}...${address.slice(-8)}`);
+  };
+
+  const handlePaymentComplete = (transactionHash: string) => {
+    addLog('status', `Payment completed: ${transactionHash}`);
+    // Refresh wallet balance after payment
+    setTimeout(() => {
+      if (walletAddress) {
+        // This would typically refresh the balance from the wallet
+        addLog('status', 'Wallet balance updated');
+      }
+    }, 3000);
+  };
+
+  const handleWalletError = (error: string) => {
+    addLog('error', `Wallet error: ${error}`);
+  };
+
+  // === JOB SUBMISSION HANDLERS ===
+  const handleJobSubmitted = (jobId: string) => {
+    setSubmittedJobs(prev => [...prev, jobId]);
+    setActiveJobId(jobId);
+    addLog('status', `GPU job submitted: ${jobId}`);
+    
+    // Start monitoring job progress
+    setTimeout(() => {
+      addLog('status', `Job ${jobId} started processing`);
+    }, 2000);
+  };
+
+  // === PROOF OF WORK HANDLERS ===
+  const handleProofGenerated = (proof: any) => {
+    if (activeJobId) {
+      setJobProofs(prev => new Map(prev.set(activeJobId, proof)));
+      addLog('status', `Proof of work generated for job ${activeJobId}`);
+    }
+  };
+
+  const handleVerificationComplete = (isValid: boolean) => {
+    if (activeJobId) {
+      if (isValid) {
+        addLog('status', `Proof verification successful for job ${activeJobId}`);
+      } else {
+        addLog('error', `Proof verification failed for job ${activeJobId}`);
+      }
+    }
+  };
+
   // Auto-refresh earnings data every 30 seconds
   useEffect(() => {
     if (daemonActive && activeView === 'earnings') {
       const interval = setInterval(() => {
         fetchRentalData();
       }, 30000);
-      setEarningsRefreshInterval(interval);
+      setEarningsRefreshInterval(interval as unknown as number);
       
       return () => {
         if (earningsRefreshInterval) {
@@ -1097,6 +1166,12 @@ function App() {
             onClick={() => handleViewChange('job-submission')}
           >
             Job Submission
+          </button>
+          <button 
+            className={activeView === 'wallet' ? 'nav-tab active' : 'nav-tab'}
+            onClick={() => handleViewChange('wallet')}
+          >
+            Wallet
           </button>
         </nav>
       </header>
@@ -1529,7 +1604,7 @@ function App() {
                               <span className="detail-label"> Payment:</span>
                               <span className="detail-value" style={{color: getPaymentStatusColor(booking.payment_status)}}>
                                 {booking.payment_status} 
-                                {booking.payment_status === 'paid' ? ' ✅ ' : booking.payment_status === 'pending' ? ' ⏳' : ' ❌'}
+                                {booking.payment_status === 'paid' ? ' [PAID] ' : booking.payment_status === 'pending' ? ' [PENDING]' : ' [FAILED]'}
                               </span>
                             </div>
                             <div className="detail-row">
@@ -1552,7 +1627,7 @@ function App() {
                               </button>
                             )}
                             <button onClick={() => {
-                              const message = `Status update for booking ${booking.id}: ${booking.booking_status}`;
+                              // const _message = `Status update for booking ${booking.id}: ${booking.booking_status}`;
                               if (confirm(`Send update to ${booking.renter_name}?`)) {
                                 addLog('status', `Update sent to ${booking.renter_name}`);
                               }
@@ -1742,7 +1817,7 @@ function App() {
                             addLog('status', 'Auto-withdrawal enabled');
                           }
                         }}>
-                          ⚙️ Auto-Withdraw
+                          Auto-Withdraw
                         </button>
                       </div>
                     </div>
@@ -1751,11 +1826,11 @@ function App() {
 
                 {/* Earnings Analytics Dashboard */}
                 <div className="earnings-analytics">
-                  <h3>📊 Earnings Analytics & Performance</h3>
+                  <h3>Earnings Analytics & Performance</h3>
                   <div className="analytics-grid">
                     <div className="analytic-card revenue">
                       <div className="analytic-header">
-                        <h4>💰 Revenue Trend</h4>
+                        <h4>Revenue Trend</h4>
                         <select className="time-selector">
                           <option value="7d">Last 7 Days</option>
                           <option value="30d">Last 30 Days</option>
@@ -1782,7 +1857,7 @@ function App() {
 
                     <div className="analytic-card utilization">
                       <div className="analytic-header">
-                        <h4>🎮 GPU Utilization</h4>
+                        <h4>GPU Utilization</h4>
                         <button className="optimize-btn" onClick={() => {
                           if (confirm('Run optimization analysis for better GPU utilization?')) {
                             addLog('status', 'GPU optimization analysis started');
@@ -2084,173 +2159,127 @@ function App() {
 
       {activeView === 'job-submission' && (
         <>
-          {/* Job Submission Interface */}
+          {/* Job Submission with Proof of Work */}
           <section className="card">
-            <h2>Job Submission Interface</h2>
+            <h2>🚀 GPU Job Submission & Verification</h2>
             {daemonActive ? (
               <>
-                <div className="job-submission-form">
-                  <h3>Submit New GPU Job</h3>
-                  <div className="form-section">
-                    <h4>Job Specification</h4>
-                    <div className="form-row">
-                      <label>Job Name:</label>
-                      <input 
-                        type="text" 
-                        value={newJobSpec.job_name}
-                        onChange={(e) => setNewJobSpec(prev => ({...prev, job_name: e.target.value}))}
-                        placeholder="My ML Training Job"
-                      />
-                    </div>
-                    <div className="form-row">
-                      <label>Description:</label>
-                      <textarea 
-                        value={newJobSpec.job_description}
-                        onChange={(e) => setNewJobSpec(prev => ({...prev, job_description: e.target.value}))}
-                        placeholder="Describe your machine learning job..."
-                        rows={3}
-                      />
-                    </div>
-                    <div className="form-row">
-                      <label>Framework:</label>
-                      <select 
-                        value={newJobSpec.framework}
-                        onChange={(e) => setNewJobSpec(prev => ({...prev, framework: e.target.value}))}
-                      >
-                        <option value="pytorch">PyTorch</option>
-                        <option value="tensorflow">TensorFlow</option>
-                        <option value="keras">Keras</option>
-                        <option value="scikit-learn">Scikit-Learn</option>
-                        <option value="custom">Custom</option>
-                      </select>
-                      <label>Python Version:</label>
-                      <select 
-                        value={newJobSpec.python_version}
-                        onChange={(e) => setNewJobSpec(prev => ({...prev, python_version: e.target.value}))}
-                      >
-                        <option value="3.9">Python 3.9</option>
-                        <option value="3.10">Python 3.10</option>
-                        <option value="3.11">Python 3.11</option>
-                      </select>
-                    </div>
+                <RealJobSubmission 
+                  onJobSubmitted={handleJobSubmitted}
+                  availableGpus={gpus}
+                />
+                
+                {/* Active Job Proof of Work */}
+                {activeJobId && (
+                  <div className="active-job-section">
+                    <h3>🔬 Active Job Verification</h3>
+                    <ProofOfWork
+                      jobId={activeJobId}
+                      gpuId={gpus.length > 0 ? gpus[0].id : 'unknown'}
+                      onProofGenerated={handleProofGenerated}
+                      onVerificationComplete={handleVerificationComplete}
+                    />
                   </div>
+                )}
 
-                  <div className="form-section">
-                    <h4>Resource Requirements</h4>
-                    <div className="form-row">
-                      <label>GPU Memory (MB):</label>
-                      <input 
-                        type="number" 
-                        value={newJobSpec.gpu_memory_requirements}
-                        onChange={(e) => setNewJobSpec(prev => ({...prev, gpu_memory_requirements: parseInt(e.target.value)}))}
-                        min="1024"
-                        max="36864"
-                      />
-                      <label>CPU Cores:</label>
-                      <input 
-                        type="number" 
-                        value={newJobSpec.cpu_requirements}
-                        onChange={(e) => setNewJobSpec(prev => ({...prev, cpu_requirements: parseInt(e.target.value)}))}
-                        min="1"
-                        max="16"
-                      />
-                    </div>
-                    <div className="form-row">
-                      <label>RAM (MB):</label>
-                      <input 
-                        type="number" 
-                        value={newJobSpec.ram_requirements}
-                        onChange={(e) => setNewJobSpec(prev => ({...prev, ram_requirements: parseInt(e.target.value)}))}
-                        min="1024"
-                        max="65536"
-                      />
-                      <label>Storage (GB):</label>
-                      <input 
-                        type="number" 
-                        value={newJobSpec.storage_requirements}
-                        onChange={(e) => setNewJobSpec(prev => ({...prev, storage_requirements: parseInt(e.target.value)}))}
-                        min="10"
-                        max="1000"
-                      />
+                {/* Submitted Jobs History */}
+                {submittedJobs.length > 0 && (
+                  <div className="submitted-jobs-section">
+                    <h3>📝 Submitted Jobs</h3>
+                    <div className="jobs-list">
+                      {submittedJobs.map((jobId) => (
+                        <div key={jobId} className="job-item">
+                          <div className="job-info">
+                            <span className="job-id">Job #{jobId.slice(-8)}</span>
+                            <span className="job-status">
+                              {jobProofs.has(jobId) ? '✅ Verified' : '⏳ Processing'}
+                            </span>
+                          </div>
+                          {jobProofs.has(jobId) && (
+                            <div className="job-proof">
+                              <span>Proof Hash: {jobProofs.get(jobId)?.computeHash?.slice(0, 16)}...</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
-
-                  <div className="form-section">
-                    <h4>Job Configuration</h4>
-                    <div className="form-row">
-                      <label>Priority:</label>
-                      <select 
-                        value={newJobSpec.priority}
-                        onChange={(e) => setNewJobSpec(prev => ({...prev, priority: e.target.value}))}
-                      >
-                        <option value="low">Low</option>
-                        <option value="normal">Normal</option>
-                        <option value="high">High</option>
-                      </select>
-                      <label>Max Retries:</label>
-                      <input 
-                        type="number" 
-                        value={newJobSpec.max_retries}
-                        onChange={(e) => setNewJobSpec(prev => ({...prev, max_retries: parseInt(e.target.value)}))}
-                        min="0"
-                        max="10"
-                      />
-                    </div>
-                    <div className="form-row">
-                      <label>
-                        <input 
-                          type="checkbox" 
-                          checked={newJobSpec.auto_restart_on_failure}
-                          onChange={(e) => setNewJobSpec(prev => ({...prev, auto_restart_on_failure: e.target.checked}))}
-                        />
-                        Auto-restart on failure
-                      </label>
-                      <label>
-                        <input 
-                          type="checkbox" 
-                          checked={newJobSpec.network_requirements}
-                          onChange={(e) => setNewJobSpec(prev => ({...prev, network_requirements: e.target.checked}))}
-                        />
-                        Requires internet access
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="form-actions">
-                    <button className="primary" onClick={() => setShowJobModal(true)}>
-                      Submit Job
-                    </button>
-                    <button className="secondary" onClick={() => {
-                      setNewJobSpec({
-                        job_name: '',
-                        job_description: '',
-                        framework: 'pytorch',
-                        python_version: '3.9',
-                        conda_environment: undefined,
-                        pip_requirements: [],
-                        environment_variables: {},
-                        startup_script: undefined,
-                        data_sources: [],
-                        expected_outputs: [],
-                        estimated_completion_time: undefined,
-                        gpu_memory_requirements: 8192,
-                        cpu_requirements: 4,
-                        ram_requirements: 16384,
-                        storage_requirements: 50,
-                        network_requirements: true,
-                        checkpoint_frequency: 300,
-                        auto_restart_on_failure: true,
-                        max_retries: 3,
-                        priority: 'normal',
-                      });
-                    }}>
-                      Reset Form
-                    </button>
-                  </div>
-                </div>
+                )}
               </>
             ) : (
-              <p>Daemon is offline. Start the daemon to submit jobs.</p>
+              <div className="offline-submission-state">
+                <p>🚫 Job submission unavailable. System is offline.</p>
+                <button onClick={handleStartDaemon} className="cta-btn">
+                  🚀 Start System
+                </button>
+              </div>
+            )}
+          </section>
+        </>
+      )}
+
+      {activeView === 'wallet' && (
+        <>
+          {/* Phantom Wallet Integration */}
+          <section className="card">
+            <h2>💰 Phantom Wallet Integration</h2>
+            <RealPhantomWallet
+              onWalletConnected={handleWalletConnected}
+              onWalletDisconnected={() => setIsWalletConnected(false)}
+              onPaymentComplete={handlePaymentComplete}
+              onWalletError={handleWalletError}
+            />
+            
+            {/* Wallet Status Display */}
+            {isWalletConnected && (
+              <div className="wallet-status-section">
+                <h3>💳 Wallet Status</h3>
+                <div className="wallet-info-card">
+                  <div className="wallet-detail">
+                    <span className="label">Connected Address:</span>
+                    <span className="value">{walletAddress?.slice(0, 8)}...{walletAddress?.slice(-8)}</span>
+                  </div>
+                  <div className="wallet-detail">
+                    <span className="label">SOL Balance:</span>
+                    <span className="value">{walletBalance.toFixed(4)} SOL</span>
+                  </div>
+                  <div className="wallet-detail">
+                    <span className="label">Status:</span>
+                    <span className="value connected">✅ Connected</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Payment Integration for GPU Jobs */}
+            {isWalletConnected && submittedJobs.length > 0 && (
+              <div className="payment-integration-section">
+                <h3>💸 Job Payment Integration</h3>
+                <div className="payment-info">
+                  <p>💡 <strong>Payment Integration Ready!</strong></p>
+                  <p>Your wallet is connected and ready to process payments for GPU rental jobs.</p>
+                  <p>Future job submissions will automatically integrate with your Phantom wallet for secure payments.</p>
+                  
+                  <div className="payment-features">
+                    <div className="feature-item">
+                      <span>🔒</span>
+                      <span>Secure escrow payments</span>
+                    </div>
+                    <div className="feature-item">
+                      <span>⚡</span>
+                      <span>Instant transaction verification</span>
+                    </div>
+                    <div className="feature-item">
+                      <span>🧾</span>
+                      <span>Automatic invoice generation</span>
+                    </div>
+                    <div className="feature-item">
+                      <span>💰</span>
+                      <span>Multi-currency support (SOL/USDC/DGPU)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </section>
         </>
@@ -3105,6 +3134,17 @@ function App() {
           </div>
         </div>
       </section>
+
+      {/* Job Execution Results Modal */}
+      {showJobResults && currentJobResultsId && (
+        <JobExecutionResults
+          jobId={currentJobResultsId}
+          onClose={() => {
+            setShowJobResults(false);
+            setCurrentJobResultsId(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,0 +1,397 @@
+.job-submission-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.job-templates {
+  margin-bottom: 30px;
+}
+
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.template-card {
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  padding: 15px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.template-card:hover {
+  border-color: #007bff;
+  box-shadow: 0 2px 8px rgba(0,123,255,0.2);
+}
+
+.template-card.selected {
+  border-color: #007bff;
+  background-color: #f0f8ff;
+}
+
+.template-requirements {
+  margin-top: 10px;
+  color: #666;
+}
+
+.job-form {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.form-section {
+  margin-bottom: 25px;
+  padding: 15px;
+  background: white;
+  border-radius: 6px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 15px;
+}
+
+.form-row label {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.form-row input, .form-row select {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.gpu-selection {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 15px;
+}
+
+.gpu-option {
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  padding: 15px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.3s ease;
+}
+
+.gpu-option:hover {
+  border-color: #007bff;
+}
+
+.gpu-option.selected {
+  border-color: #007bff;
+  background-color: #f0f8ff;
+}
+
+.selected-indicator {
+  color: #007bff;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.resource-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.pricing-info {
+  background: #e9ecef;
+  padding: 15px;
+  border-radius: 6px;
+}
+
+.estimated-cost h4 {
+  color: #007bff;
+  margin-bottom: 10px;
+}
+
+.validation-errors {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 15px;
+  border-radius: 6px;
+  margin-bottom: 15px;
+}
+
+.submit-button {
+  background-color: #007bff;
+  color: white;
+  padding: 12px 30px;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.submit-button:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+.submit-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+/* Cost Calculation Styles */
+.cost-calculation {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.cost-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cost-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.cost-row:last-child {
+  border-bottom: none;
+}
+
+.cost-row.total {
+  font-weight: bold;
+  font-size: 1.1em;
+  color: #495057;
+  border-top: 2px solid #007bff;
+  padding-top: 12px;
+  margin-top: 8px;
+}
+
+.cost-row span:first-child {
+  color: #6c757d;
+}
+
+.cost-row span:last-child {
+  color: #495057;
+  font-weight: 500;
+}
+
+.cost-row.total span:last-child {
+  color: #007bff;
+  font-weight: bold;
+}
+
+/* Payment Status Styles */
+.payment-status {
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border-left: 4px solid;
+}
+
+.payment-status.completed {
+  background: #d4edda;
+  border-left-color: #28a745;
+  color: #155724;
+}
+
+.payment-status.pending {
+  background: #fff3cd;
+  border-left-color: #ffc107;
+  color: #856404;
+}
+
+.payment-status h4 {
+  margin: 0 0 12px 0;
+  font-size: 1.1em;
+}
+
+.payment-status p {
+  margin: 8px 0;
+  font-size: 0.95em;
+}
+
+.payment-status code {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 0.85em;
+  word-break: break-all;
+}
+
+/* Submit Button States */
+.submit-button.payment-required {
+  background: #ffc107;
+  color: #212529;
+  border: 1px solid #ffc107;
+}
+
+.submit-button.payment-required:hover {
+  background: #ffca28;
+  border-color: #ffca28;
+}
+
+.submit-button.payment-completed {
+  background: #28a745;
+  color: white;
+  border: 1px solid #28a745;
+}
+
+.submit-button.payment-completed:hover {
+  background: #218838;
+  border-color: #218838;
+}
+
+/* Payment Modal Styles */
+.payment-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.payment-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.payment-modal h3 {
+  margin: 0 0 20px 0;
+  color: #495057;
+  font-size: 1.3em;
+  text-align: center;
+}
+
+.payment-details {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.payment-details p {
+  margin: 8px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.payment-details strong {
+  color: #495057;
+  min-width: 100px;
+}
+
+.payment-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.pay-button {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.pay-button:hover {
+  background: #0056b3;
+}
+
+.cancel-button {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.cancel-button:hover {
+  background: #545b62;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .payment-modal {
+    padding: 20px;
+    margin: 20px;
+  }
+  
+  .payment-actions {
+    flex-direction: column;
+  }
+  
+  .pay-button,
+  .cancel-button {
+    width: 100%;
+  }
+  
+  .cost-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}
+
+/* Animation for modal appearance */
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.payment-modal {
+  animation: modalFadeIn 0.3s ease-out;
+}
+
+/* Cost calculation hover effects */
+.cost-calculation:hover {
+  background: #e9ecef;
+  transition: background-color 0.2s;
+}
+
+.cost-row:hover {
+  background: rgba(0, 123, 255, 0.05);
+  transition: background-color 0.2s;
+} 

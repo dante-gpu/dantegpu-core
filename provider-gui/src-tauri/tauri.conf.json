@@ -40,6 +40,14 @@
       },
       "notification": {
         "all": true
+      },
+      "dialog": {
+        "all": true,
+        "ask": true,
+        "confirm": true,
+        "message": true,
+        "open": true,
+        "save": true
       }
     },
     "bundle": {
@@ -75,7 +83,12 @@
         "height": 768,
         "minWidth": 800,
         "minHeight": 600,
-        "label": "main"
+        "label": "main",
+        "center": true,
+        "visible": true,
+        "decorations": true,
+        "alwaysOnTop": false,
+        "skipTaskbar": false
       }
     ],
     "macOSPrivateApi": true
