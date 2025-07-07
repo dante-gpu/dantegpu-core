@@ -1,0 +1,15 @@
+{
+  "name": "dantegpu-core",
+  "version": "1.0.0",
+  "description": "A decentralized GPU rental platform that enables users to rent GPU resources for AI training and computation using dGPU tokens on the Solana blockchain.",
+  "main": "setup-nats-streams.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "nats": "^2.29.3"
+  }
+}

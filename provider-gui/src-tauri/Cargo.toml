@@ -13,11 +13,13 @@ edition = "2021"
 tauri-build = { version = "1.5.3", features = [] }
 
 [dependencies]
-tauri = { version = "1.7.0", features = [ "fs-all", "http-all", "process-all", "shell-open", "system-tray", "window-all", "os-all", "path-all", "notification-all", "dialog-all"] }
+tauri = { version = "1.7.0", features = [ "macos-private-api", "shell-sidecar", "fs-all", "http-all", "process-all", "shell-open", "path-all", "notification-all"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-# Add humantime for timestamp formatting
-humantime = "2.1" 
+humantime = "2.1"
+reqwest = { version = "0.11", features = ["json"] }
+rand = "0.8"
+tokio = { version = "1.0", features = ["full"] } 
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

@@ -54,7 +54,7 @@
         "icons/icon.ico"
       ],
       "resources": [],
-      "externalBin": ["sidecars/provider-daemon"]
+      "externalBin": ["sidecars/provider-daemon-aarch64-apple-darwin"]
     },
     "security": {
       "csp": null,

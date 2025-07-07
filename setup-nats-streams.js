@@ -1,0 +1,89 @@
+const { connect, StringCodec } = require('nats');
+
+async function setupNATSStreams() {
+    console.log('=== SETTING UP NATS STREAMS FOR DANTEGPU ===');
+    
+    try {
+        // Connect to NATS
+        const nc = await connect({ servers: 'nats://localhost:4222' });
+        console.log('✅ Connected to NATS server');
+
+        // Get JetStream context
+        const js = nc.jetstream();
+        console.log('✅ JetStream context created');
+
+        // Stream configurations
+        const streams = [
+            {
+                name: 'TASKS',
+                subjects: ['tasks.>', 'jobs.>', 'dispatch.>']
+            },
+            {
+                name: 'BILLING',
+                subjects: ['billing.>', 'payments.>', 'transactions.>']
+            },
+            {
+                name: 'MONITORING',
+                subjects: ['metrics.>', 'health.>', 'status.>']
+            },
+            {
+                name: 'GPU',
+                subjects: ['gpu.>', 'provider.>', 'rental.>']
+            },
+            {
+                name: 'NOTIFICATIONS', 
+                subjects: ['notifications.>', 'alerts.>', 'events.>']
+            }
+        ];
+
+        // Create streams
+        const jsm = await js.jetstreamManager();
+        
+        for (const stream of streams) {
+            try {
+                console.log(`Creating stream: ${stream.name} with subjects: ${stream.subjects.join(', ')}`);
+                
+                const streamConfig = {
+                    name: stream.name,
+                    subjects: stream.subjects,
+                    storage: 'File',
+                    max_msgs: 1000000,
+                    max_bytes: 100 * 1024 * 1024, // 100MB
+                    max_age: 24 * 60 * 60 * 1000000000, // 24 hours in nanoseconds
+                    retention: 'Limits',
+                    discard: 'Old',
+                    num_replicas: 1
+                };
+
+                await jsm.streams.add(streamConfig);
+                console.log(`✅ Stream ${stream.name} created successfully`);
+            } catch (error) {
+                if (error.message.includes('stream name already in use') || error.code === 10058) {
+                    console.log(`⚠️  Stream ${stream.name} already exists, skipping...`);
+                } else {
+                    console.error(`❌ Failed to create stream ${stream.name}:`, error.message);
+                }
+            }
+        }
+
+        // Verify streams
+        console.log('\n=== VERIFYING STREAMS ===');
+        try {
+            const streams_list = await jsm.streams.list();
+            for (const stream of streams_list) {
+                console.log(`✅ Stream: ${stream.config.name}, Subjects: ${stream.config.subjects.join(', ')}, Messages: ${stream.state.messages}`);
+            }
+        } catch (error) {
+            console.log('Could not list streams:', error.message);
+        }
+
+        console.log('\n=== NATS STREAMS SETUP COMPLETE ===');
+        await nc.close();
+
+    } catch (error) {
+        console.error('❌ Error setting up NATS streams:', error);
+        process.exit(1);
+    }
+}
+
+setupNATSStreams(); 

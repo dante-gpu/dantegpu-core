@@ -1,0 +1,10 @@
+instance_id: provider-virjilakrum-M4-Max.local
+log_level: info
+request_timeout: 30s
+nats_address: nats://localhost:4222
+nats_task_subscription_subject_pattern: tasks.dispatch.%s.*
+nats_job_status_update_subject_prefix: jobs.status
+nats_command_timeout: 10s
+provider_registry_service_name: provider-registry
+provider_heartbeat_interval: 30s
+workspace_dir: /var/folders/jg/kqfp99g13f13krzv531d3yy80000gn/T/dante_tasks
