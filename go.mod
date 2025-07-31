@@ -6,6 +6,7 @@ require (
 	github.com/docker/docker v24.0.7+incompatible
 	github.com/gagliardetto/solana-go v1.8.4
 	github.com/google/uuid v1.4.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/nats-io/nats.go v1.31.0
 	github.com/shopspring/decimal v1.3.1
 	go.uber.org/zap v1.26.0

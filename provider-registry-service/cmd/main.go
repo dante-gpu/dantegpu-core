@@ -41,30 +41,51 @@ func main() {
 	}
 	defer logger.Sync() // Flush logs before exiting
 
-	// --- Database Connection Setup ---
+	// --- Database Connection Setup with Retry ---
+	var dbPool *pgxpool.Pool
+	var dbErr error
+
+	const (
+		maxRetries    = 10
+		retryInterval = 5 * time.Second
+	)
+
 	dbURL, err := cfg.GetDatabaseURL()
 	if err != nil {
 		logger.Fatal("Failed to get database URL", zap.Error(err))
 	}
-
-	// Log redacted version of the URL to avoid exposing credentials
 	redactedURL := redactDatabaseURL(dbURL)
-	logger.Info("Connecting to PostgreSQL database...", zap.String("url", redactedURL))
+	logger.Info("Attempting to connect to PostgreSQL database...", zap.String("url", redactedURL))
 
-	dbCtx, dbCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer dbCancel()
+	for i := 0; i < maxRetries; i++ {
+		dbCtx, dbCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer dbCancel()
 
-	dbPool, err := pgxpool.New(dbCtx, dbURL)
-	if err != nil {
-		logger.Fatal("Failed to connect to PostgreSQL database", zap.Error(err))
+		dbPool, dbErr = pgxpool.New(dbCtx, dbURL)
+		if dbErr == nil {
+			// Test the connection
+			if err := dbPool.Ping(dbCtx); err == nil {
+				logger.Info("Successfully connected to PostgreSQL database")
+				break // Success
+			} else {
+				dbErr = err // Store ping error
+				dbPool.Close() // Close pool on ping failure
+			}
+		}
+
+		logger.Warn("Failed to connect to database, retrying...",
+			zap.Int("attempt", i+1),
+			zap.Int("max_attempts", maxRetries),
+			zap.Duration("interval", retryInterval),
+			zap.Error(dbErr),
+		)
+		time.Sleep(retryInterval)
+	}
+
+	if dbPool == nil || dbErr != nil {
+		logger.Fatal("Failed to connect to PostgreSQL database after multiple retries", zap.Error(dbErr))
 	}
 	defer dbPool.Close()
-
-	// Test the connection
-	if err := dbPool.Ping(dbCtx); err != nil {
-		logger.Fatal("Failed to ping PostgreSQL database", zap.Error(err))
-	}
-	logger.Info("Successfully connected to PostgreSQL database")
 
 	// --- Consul Client ---
 	consulClient, err := consul_client.Connect(cfg.ConsulAddress, logger)

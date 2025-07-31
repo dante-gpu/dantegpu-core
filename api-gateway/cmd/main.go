@@ -78,6 +78,7 @@ func main() {
 	// Create load balancer and proxy handler (even if Consul connection failed, to avoid nil pointers)
 	lb := loadbalancer.NewRoundRobin()
 	proxyHandler := handlers.NewProxyHandler(logger, cfg, consulClient, lb)
+	logHandler := handlers.NewLogHandler(logger, cfg.LokiURL)
 
 	// == Public Routes ==
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -120,6 +121,9 @@ func main() {
 		w.WriteHeader(healthStatus)
 		fmt.Fprintf(w, strings.TrimSpace(healthMsg))
 	})
+
+	// == Log Streaming Route ==
+	r.Get("/logs/stream", logHandler.StreamLogs)
 
 	// == Authentication Routes ==
 	r.Route("/auth", func(r chi.Router) {

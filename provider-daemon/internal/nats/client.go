@@ -36,11 +36,11 @@ func NewClient(cfg *config.Config, logger *zap.Logger, handler TaskHandlerFunc) 
 	}
 
 	nc, err := nats.Connect(
-		cfg.NatsAddress,
+		cfg.NatsConfig.URL,
 		nats.RetryOnFailedConnect(true),
 		nats.MaxReconnects(100), // More aggressive for daemon
 		nats.ReconnectWait(3*time.Second),
-		nats.Timeout(cfg.NatsCommandTimeout),
+		nats.Timeout(cfg.NatsConfig.ConnectTimeout),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
 			logger.Warn("NATS disconnected", zap.Error(err))
 		}),
@@ -63,7 +63,7 @@ func NewClient(cfg *config.Config, logger *zap.Logger, handler TaskHandlerFunc) 
 		}),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS at %s: %w", cfg.NatsAddress, err)
+		return nil, fmt.Errorf("failed to connect to NATS at %s: %w", cfg.NatsConfig.URL, err)
 	}
 	client.nc = nc
 
@@ -75,7 +75,7 @@ func NewClient(cfg *config.Config, logger *zap.Logger, handler TaskHandlerFunc) 
 	}
 	client.js = js
 
-	logger.Info("Successfully connected to NATS and obtained JetStream context", zap.String("address", cfg.NatsAddress))
+	logger.Info("Successfully connected to NATS and obtained JetStream context", zap.String("address", cfg.NatsConfig.URL))
 	return client, nil
 }
 
@@ -92,7 +92,7 @@ func (c *Client) startSubscription() error {
 	// Construct the specific subject for this daemon instance
 	// The pattern from config is tasks.dispatch.%s.*, where %s is the instance ID.
 	// The second '*' allows for job_id or other specific task identifiers.
-	subjectToSubscribe := fmt.Sprintf(c.cfg.NatsTaskSubscriptionSubjectPattern, c.cfg.InstanceID)
+	subjectToSubscribe := fmt.Sprintf(c.cfg.NatsConfig.TaskDispatchSubjectPattern, c.cfg.InstanceID)
 	// Corrected: The pattern itself usually doesn't end with '.*' if Printf is adding it.
 	// Let's assume pattern is "tasks.dispatch.%s" and we add ".*" for the subscription.
 	// Or, if pattern is "tasks.dispatch.%s.*", use it directly.
@@ -114,7 +114,7 @@ func (c *Client) startSubscription() error {
 	durableName := fmt.Sprintf("pd_%s_taskconsumer", finalSanitizedID) // Use the sanitized ID
 
 	c.logger.Info("Subscribing to NATS task dispatch subject (JetStream Pull)",
-		zap.String("subscription_subject_pattern", c.cfg.NatsTaskSubscriptionSubjectPattern),
+		zap.String("subscription_subject_pattern", c.cfg.NatsConfig.TaskDispatchSubjectPattern),
 		zap.String("effective_subscription_subject", subjectToSubscribe),
 		zap.String("original_instance_id_for_consumer", rawInstanceID), // Log original ID
 		zap.String("sanitized_id_for_consumer", finalSanitizedID),      // Log fully sanitized ID
@@ -126,7 +126,7 @@ func (c *Client) startSubscription() error {
 	c.subscription, err = c.js.PullSubscribe(
 		subjectToSubscribe, // The subject to listen on (can include wildcards like > or *)
 		durableName,        // Durable name for the consumer
-		nats.AckWait(c.cfg.NatsCommandTimeout*3), // AckWait should be longer than typical processing
+		nats.AckWait(c.cfg.NatsConfig.AckWait), // AckWait should be longer than typical processing
 		// nats.MaxDeliver(5), // Optional: Limit redeliveries
 		// nats.BindStream("TASKS_STREAM"), // Optional: Explicitly bind to a stream if not inferred by subject
 	)
@@ -250,27 +250,31 @@ func (c *Client) PublishStatus(statusUpdate *models.TaskStatusUpdate) error {
 		return fmt.Errorf("NATS client not connected, cannot publish status for job %s", statusUpdate.JobID)
 	}
 
-	statusJSON, err := json.Marshal(statusUpdate)
+	// Subject where status updates are sent. e.g., "tasks.status.job123"
+	subject := fmt.Sprintf("%s.%s", c.cfg.NatsConfig.JobStatusUpdateSubjectPrefix, statusUpdate.JobID)
+
+	payload, err := json.Marshal(statusUpdate)
 	if err != nil {
-		c.logger.Error("Failed to marshal task status update", zap.String("job_id", statusUpdate.JobID), zap.Error(err))
-		return fmt.Errorf("failed to marshal status update: %w", err)
+		return fmt.Errorf("failed to marshal status update for job %s: %w", statusUpdate.JobID, err)
 	}
 
-	subject := fmt.Sprintf("%s.%s", c.cfg.NatsJobStatusUpdateSubjectPrefix, statusUpdate.JobID)
-	c.logger.Debug("Publishing task status update",
+	// Publish the message
+	err = c.nc.Publish(subject, payload)
+	if err != nil {
+		return fmt.Errorf("failed to publish status update for job %s to subject %s: %w", statusUpdate.JobID, subject, err)
+	}
+
+	// Ensure the message is sent before returning, with a timeout.
+	if err := c.nc.FlushTimeout(c.cfg.NatsConfig.ConnectTimeout); err != nil {
+		c.logger.Warn("NATS flush timeout after publishing status update", zap.Error(err), zap.String("job_id", statusUpdate.JobID))
+	}
+
+	c.logger.Info("Successfully published status update",
 		zap.String("subject", subject),
 		zap.String("job_id", statusUpdate.JobID),
 		zap.String("status", string(statusUpdate.Status)),
 	)
-
-	if err := c.nc.Publish(subject, statusJSON); err != nil {
-		c.logger.Error("Failed to publish task status update to NATS", zap.String("subject", subject), zap.Error(err))
-		return fmt.Errorf("failed to publish status update to NATS: %w", err)
-	}
-	// For important status updates, ensure it reaches the server.
-	// Use PublishMsg with reply or ensure JetStream acks if publishing to a stream.
-	// For plain publish, Flush or FlushTimeout helps.
-	return c.nc.FlushTimeout(c.cfg.NatsCommandTimeout)
+	return nil
 }
 
 // IsConnected checks if the NATS client is currently connected.

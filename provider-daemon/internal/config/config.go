@@ -19,7 +19,7 @@ type NatsConfig struct {
 	MaxReconnects              int           `yaml:"max_reconnects"`
 	SubjectPrefix              string        `yaml:"subject_prefix"`
 	TaskDispatchSubjectPattern string        `yaml:"task_dispatch_subject_pattern"`
-	StatusUpdateSubject        string        `yaml:"status_update_subject"`
+	JobStatusUpdateSubjectPrefix string      `yaml:"job_status_update_subject_prefix"`
 	StreamNamePrefix           string        `yaml:"stream_name_prefix"`
 	ConsumerNamePrefix         string        `yaml:"consumer_name_prefix"`
 	PullMaxWaiting             int           `yaml:"pull_max_waiting"`
@@ -101,7 +101,7 @@ func LoadConfig(path string, logger *zap.Logger) (*Config, error) {
 			MaxReconnects:              -1, // Infinite
 			SubjectPrefix:              "dante.tasks",
 			TaskDispatchSubjectPattern: "dante.tasks.dispatch.>",
-			StatusUpdateSubject:        "dante.provider.status",
+			JobStatusUpdateSubjectPrefix: "dante.provider.status",
 			StreamNamePrefix:           "DANTE_TASKS_",
 			ConsumerNamePrefix:         "provider_daemon_",
 			PullMaxWaiting:             5,
@@ -199,8 +199,8 @@ func applyDefaultsIfNotSet(cfg *Config, defaults *Config) {
 	if cfg.NatsConfig.TaskDispatchSubjectPattern == "" {
 		cfg.NatsConfig.TaskDispatchSubjectPattern = defaults.NatsConfig.TaskDispatchSubjectPattern
 	}
-	if cfg.NatsConfig.StatusUpdateSubject == "" {
-		cfg.NatsConfig.StatusUpdateSubject = defaults.NatsConfig.StatusUpdateSubject
+	if cfg.NatsConfig.JobStatusUpdateSubjectPrefix == "" {
+		cfg.NatsConfig.JobStatusUpdateSubjectPrefix = defaults.NatsConfig.JobStatusUpdateSubjectPrefix
 	}
 	if cfg.NatsConfig.StreamNamePrefix == "" {
 		cfg.NatsConfig.StreamNamePrefix = defaults.NatsConfig.StreamNamePrefix

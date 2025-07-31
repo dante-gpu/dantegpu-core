@@ -18,6 +18,7 @@ type Config struct {
 	JwtSecret      string        `yaml:"jwt_secret"`
 	JwtExpiration  time.Duration `yaml:"jwt_expiration"`  // I'll store this as duration
 	RequestTimeout time.Duration `yaml:"request_timeout"` // Adding the request timeout here
+	LokiURL        string        `yaml:"loki_url"`
 }
 
 // LoadConfig reads configuration from the given YAML file path.
@@ -32,6 +33,7 @@ func LoadConfig(path string) (*Config, error) {
 		JwtSecret:      "default-very-secure-jwt-secret-key-change-in-production",
 		JwtExpiration:  60 * time.Minute, // Defaulting to 60 minutes
 		RequestTimeout: 60 * time.Second, // Defaulting to 60 seconds
+		LokiURL:        "http://loki:3100",
 	}
 
 	// I need to check if the config file exists.
@@ -73,8 +75,35 @@ func LoadConfig(path string) (*Config, error) {
 	// This ensures all fields have values even if the file is incomplete.
 	applyDefaultsIfNotSet(&cfg, defaultConfig)
 
+	// I should also allow environment variables to override file/default settings.
+	overrideFromEnv(&cfg)
+
 	// I should return the loaded configuration.
 	return &cfg, nil
+}
+
+// overrideFromEnv checks for environment variables and overrides config fields.
+func overrideFromEnv(cfg *Config) {
+	if port := os.Getenv("PORT"); port != "" {
+		cfg.Port = port
+	}
+	if consulAddr := os.Getenv("CONSUL_ADDRESS"); consulAddr != "" {
+		cfg.ConsulAddress = consulAddr
+	}
+	if natsAddr := os.Getenv("NATS_ADDRESS"); natsAddr != "" {
+		cfg.NatsAddress = natsAddr
+	}
+	if lokiURL := os.Getenv("LOKI_URL"); lokiURL != "" {
+		cfg.LokiURL = lokiURL
+	}
+	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
+		cfg.LogLevel = logLevel
+	}
+	if jwtSecret := os.Getenv("JWT_SECRET"); jwtSecret != "" {
+		cfg.JwtSecret = jwtSecret
+	}
+	// Note: Overriding time.Duration from env vars would require parsing.
+	// For now, keeping it simple and only overriding string/simple types.
 }
 
 // applyDefaultsIfNotSet applies default values to cfg fields if they are zero-valued.
@@ -88,6 +117,9 @@ func applyDefaultsIfNotSet(cfg *Config, defaults *Config) {
 	}
 	if cfg.NatsAddress == "" {
 		cfg.NatsAddress = defaults.NatsAddress
+	}
+	if cfg.LokiURL == "" {
+		cfg.LokiURL = defaults.LokiURL
 	}
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = defaults.LogLevel

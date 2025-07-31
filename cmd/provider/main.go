@@ -32,7 +32,7 @@ import (
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 
-	"dante-backend/common"
+	"github.com/dante-gpu/dante-backend/common"
 )
 
 // TaskExecutionType defines the type of execution

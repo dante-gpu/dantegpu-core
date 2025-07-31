@@ -4,7 +4,7 @@ request_timeout: 30s
 
 server:
   host: "" # Listen on all interfaces
-  port: 8082
+  port: 8083
 
 consul:
   enabled: true

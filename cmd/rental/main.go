@@ -21,7 +21,7 @@ import (
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 
-	"dante-backend/common"
+	"github.com/dante-gpu/dante-backend/common"
 )
 
 // AuthResponse from API Gateway login
