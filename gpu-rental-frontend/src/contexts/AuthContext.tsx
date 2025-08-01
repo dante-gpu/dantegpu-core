@@ -4,9 +4,10 @@ interface User {
   id: string
   email: string
   name: string
+  role: string
   avatar?: string
   balance: number
-  verified: boolean
+  verified?: boolean
 }
 
 interface AuthContextType {
@@ -48,7 +49,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const fetchUserProfile = async (token: string) => {
     try {
-      const response = await fetch('/api/auth/profile', {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+      const response = await fetch(`${apiBaseUrl}/api/v1/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -69,12 +71,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const login = async (email: string, password: string) => {
-    const response = await fetch('/api/auth/login', {
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+    const response = await fetch(`${apiBaseUrl}/api/v1/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ username: email, password })
     })
 
     if (!response.ok) {
@@ -82,18 +85,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
       throw new Error(error.message || 'Login failed')
     }
 
-    const { token, user: userData } = await response.json()
-    localStorage.setItem('auth_token', token)
-    setUser(userData)
+    const data = await response.json()
+    localStorage.setItem('auth_token', data.token)
+    setUser({
+      id: data.user_id,
+      name: data.username,
+      email: data.username,
+      role: data.role,
+      balance: 0 // Default balance
+    })
   }
 
   const register = async (email: string, password: string, name: string) => {
-    const response = await fetch('/api/auth/register', {
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+    const response = await fetch(`${apiBaseUrl}/api/v1/auth/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ email, password, name })
+      body: JSON.stringify({ username: email, password, role: 'user' })
     })
 
     if (!response.ok) {

@@ -137,33 +137,48 @@ func main() {
 		})
 	})
 
-	// == API V1 Routes (Protected) ==
+	// == API V1 Routes ==
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Use(customMiddleware.Authenticator(logger, cfg.JwtSecret))
+		// Authentication routes (no auth required)
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/login", authHandler.Login)
+			r.Post("/register", authHandler.Register)
 
-		// Job submission routes
-		r.Post("/jobs", jobHandler.SubmitJob)
-		r.Get("/jobs/{jobID}", jobHandler.GetJobStatus)
-		r.Delete("/jobs/{jobID}", jobHandler.CancelJob)
+			// Protected auth routes
+			r.Group(func(r chi.Router) {
+				r.Use(customMiddleware.Authenticator(logger, cfg.JwtSecret))
+				r.Get("/me", authHandler.Profile)
+			})
+		})
 
-		// Billing and wallet endpoints
-		r.Route("/billing", func(r chi.Router) {
-			// Wallet management
-			r.Post("/wallet", billingHandler.CreateWallet)
-			r.Get("/wallet/{walletID}/balance", billingHandler.GetWalletBalance)
-			r.Post("/wallet/{walletID}/deposit", billingHandler.DepositTokens)
-			r.Post("/wallet/{walletID}/withdraw", billingHandler.WithdrawTokens)
-			r.Get("/wallet/{walletID}/transactions", billingHandler.GetTransactionHistory)
+		// Protected routes
+		r.Group(func(r chi.Router) {
+			r.Use(customMiddleware.Authenticator(logger, cfg.JwtSecret))
 
-			// User-specific endpoints
-			r.Get("/user/{userID}/wallet", billingHandler.GetUserWallet)
-			r.Get("/user/{userID}/balance", billingHandler.GetUserBalance)
+			// Job submission routes
+			r.Post("/jobs", jobHandler.SubmitJob)
+			r.Get("/jobs/{jobID}", jobHandler.GetJobStatus)
+			r.Delete("/jobs/{jobID}", jobHandler.CancelJob)
 
-			// Pricing and marketplace
-			r.Get("/pricing/rates", billingHandler.GetPricingRates)
-			r.Post("/pricing/calculate", billingHandler.CalculatePricing)
-			r.Post("/pricing/estimate", billingHandler.EstimateJobCost)
-			r.Get("/marketplace", billingHandler.GetGPUMarketplace)
+			// Billing and wallet endpoints
+			r.Route("/billing", func(r chi.Router) {
+				// Wallet management
+				r.Post("/wallet", billingHandler.CreateWallet)
+				r.Get("/wallet/{walletID}/balance", billingHandler.GetWalletBalance)
+				r.Post("/wallet/{walletID}/deposit", billingHandler.DepositTokens)
+				r.Post("/wallet/{walletID}/withdraw", billingHandler.WithdrawTokens)
+				r.Get("/wallet/{walletID}/transactions", billingHandler.GetTransactionHistory)
+
+				// User-specific endpoints
+				r.Get("/user/{userID}/wallet", billingHandler.GetUserWallet)
+				r.Get("/user/{userID}/balance", billingHandler.GetUserBalance)
+
+				// Pricing and marketplace
+				r.Get("/pricing/rates", billingHandler.GetPricingRates)
+				r.Post("/pricing/calculate", billingHandler.CalculatePricing)
+				r.Post("/pricing/estimate", billingHandler.EstimateJobCost)
+				r.Get("/marketplace", billingHandler.GetGPUMarketplace)
+			})
 		})
 
 		// Admin routes (placeholder)
