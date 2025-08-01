@@ -5,14 +5,14 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o auth-service .
+RUN CGO_ENABLED=0 GOOS=linux go build -o gpu-service .
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 
-COPY --from=builder /app/auth-service .
+COPY --from=builder /app/gpu-service .
 
-EXPOSE 8090
+EXPOSE 8091
 
-CMD ["./auth-service"]
+CMD ["./gpu-service"]

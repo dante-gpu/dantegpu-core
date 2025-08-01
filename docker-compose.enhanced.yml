@@ -1,0 +1,227 @@
+version: '3.8'
+
+services:
+  # Infrastructure Services
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/db_setup:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  nats:
+    image: nats:2.9-alpine
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: ["--jetstream", "--store_dir=/data"]
+    volumes:
+      - nats_data:/data
+
+  consul:
+    image: hashicorp/consul:1.17
+    ports:
+      - "8500:8500"
+    volumes:
+      - consul_data:/consul/data
+    command: ["consul", "agent", "-dev", "-client=0.0.0.0"]
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
+  # Enhanced Services
+  gpu-monitoring:
+    image: dante/gpu-monitoring:latest
+    ports:
+      - "8095:8095"
+    depends_on:
+      - redis
+      - nats
+    environment:
+      - REDIS_URL=redis:6379
+      - NATS_URL=nats://nats:4222
+
+  redis-cache:
+    image: dante/redis-cache:latest
+    ports:
+      - "8097:8097"
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis:6379
+
+  kratos-integration:
+    image: dante/kratos-integration:latest
+    ports:
+      - "8098:8098"
+    depends_on:
+      - redis
+    environment:
+      - KRATOS_PUBLIC_URL=http://localhost:4433
+      - KRATOS_ADMIN_URL=http://localhost:4434
+      - REDIS_URL=redis:6379
+
+  payment-integration:
+    image: dante/payment-integration:latest
+    ports:
+      - "8096:8096"
+    environment:
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID}
+      - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET}
+
+  # Original Services (Enhanced)
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - consul
+      - nats
+    environment:
+      - NATS_ADDRESS=nats://nats:4222
+      - CONSUL_ADDRESS=consul:8500
+      - REDIS_URL=redis:6379
+
+  auth-service:
+    build: ./auth-service
+    ports:
+      - "8090:8090"
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+
+  gpu-service:
+    build: ./gpu-service
+    ports:
+      - "8091:8091"
+    depends_on:
+      - postgres
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+
+  rental-service:
+    build: ./rental-service
+    ports:
+      - "8092:8092"
+    depends_on:
+      - postgres
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+
+  billing-payment-service:
+    build: ./billing-payment-service
+    ports:
+      - "8082:8082"
+    depends_on:
+      - postgres
+      - payment-integration
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - PAYMENT_SERVICE_URL=http://payment-integration:8096
+
+  provider-registry-service:
+    build: ./provider-registry-service
+    ports:
+      - "8081:8081"
+    depends_on:
+      - postgres
+      - gpu-monitoring
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - GPU_MONITORING_URL=http://gpu-monitoring:8095
+
+  scheduler-orchestrator-service:
+    image: dante/scheduler-extender:latest
+    ports:
+      - "8084:8084"
+    depends_on:
+      - postgres
+      - nats
+      - gpu-monitoring
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - NATS_URL=nats://nats:4222
+      - GPU_MONITORING_URL=http://gpu-monitoring:8095
+
+  storage-service:
+    build: ./storage-service
+    ports:
+      - "8083:8083"
+    depends_on:
+      - minio
+    environment:
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+
+  # Enhanced Frontend
+  frontend:
+    image: dante/gpu-rental-frontend:latest
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+
+  # Monitoring Stack
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring-logging-service/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring-logging-service/grafana:/etc/grafana/provisioning
+
+volumes:
+  postgres_data:
+  redis_data:
+  nats_data:
+  consul_data:
+  minio_data:
+  prometheus_data:
+  grafana_data:
