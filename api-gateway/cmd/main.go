@@ -62,6 +62,7 @@ func main() {
 	r.Use(middleware.RealIP)
 	r.Use(NewStructuredLogger(logger))
 	r.Use(middleware.Recoverer)
+	r.Use(customMiddleware.CORS()) // Add CORS middleware
 	r.Use(middleware.Timeout(cfg.RequestTimeout))
 
 	// Create billing client
