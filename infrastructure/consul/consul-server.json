@@ -1,0 +1,133 @@
+{
+  "datacenter": "dantegpu-dc1",
+  "node_name": "consul-server-1",
+  "server": true,
+  "bootstrap_expect": 3,
+  "data_dir": "/consul/data",
+  "log_level": "INFO",
+  "log_file": "/var/log/consul/",
+  "log_rotate_duration": "24h",
+  "log_rotate_max_files": 7,
+  
+  "bind_addr": "0.0.0.0",
+  "client_addr": "0.0.0.0",
+  
+  "ports": {
+    "dns": 8600,
+    "http": 8500,
+    "https": 8501,
+    "grpc": 8502,
+    "serf_lan": 8301,
+    "serf_wan": 8302,
+    "server": 8300
+  },
+  
+  "retry_join": [
+    "consul-server-1",
+    "consul-server-2",
+    "consul-server-3"
+  ],
+  
+  "ui_config": {
+    "enabled": true
+  },
+  
+  "connect": {
+    "enabled": true
+  },
+  
+  "acl": {
+    "enabled": true,
+    "default_policy": "deny",
+    "enable_token_persistence": true,
+    "tokens": {
+      "master": "${CONSUL_MASTER_TOKEN}",
+      "agent": "${CONSUL_AGENT_TOKEN}"
+    }
+  },
+  
+  "encrypt": "${CONSUL_ENCRYPT_KEY}",
+  
+  "performance": {
+    "raft_multiplier": 1
+  },
+  
+  "telemetry": {
+    "prometheus_retention_time": "60s",
+    "disable_hostname": false
+  },
+  
+  "services": [
+    {
+      "name": "api-gateway",
+      "port": 8080,
+      "tags": ["api", "gateway", "http"],
+      "check": {
+        "http": "http://localhost:8080/health",
+        "interval": "10s",
+        "timeout": "2s"
+      }
+    },
+    {
+      "name": "auth-service",
+      "port": 8081,
+      "tags": ["auth", "authentication"],
+      "check": {
+        "http": "http://localhost:8081/health",
+        "interval": "10s",
+        "timeout": "2s"
+      }
+    },
+    {
+      "name": "billing-service",
+      "port": 8082,
+      "tags": ["billing", "payments"],
+      "check": {
+        "http": "http://localhost:8082/health",
+        "interval": "10s",
+        "timeout": "2s"
+      }
+    },
+    {
+      "name": "provider-registry",
+      "port": 8083,
+      "tags": ["provider", "registry"],
+      "check": {
+        "http": "http://localhost:8083/health",
+        "interval": "10s",
+        "timeout": "2s"
+      }
+    },
+    {
+      "name": "scheduler-service",
+      "port": 8084,
+      "tags": ["scheduler", "orchestrator"],
+      "check": {
+        "http": "http://localhost:8084/health",
+        "interval": "10s",
+        "timeout": "2s"
+      }
+    },
+    {
+      "name": "storage-service",
+      "port": 8085,
+      "tags": ["storage", "files"],
+      "check": {
+        "http": "http://localhost:8085/health",
+        "interval": "10s",
+        "timeout": "2s"
+      }
+    },
+    {
+      "name": "gpu-monitoring",
+      "port": 8086,
+      "tags": ["monitoring", "metrics"],
+      "check": {
+        "http": "http://localhost:8086/health",
+        "interval": "10s",
+        "timeout": "2s"
+      }
+    }
+  ]
+}
+
