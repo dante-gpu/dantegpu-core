@@ -1,0 +1,285 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: dante-gpu/dantegpu-core
+
+jobs:
+  test-backend:
+    name: Test Backend Services
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - api-gateway
+          - auth-service
+          - billing-service
+          - provider-registry
+          - scheduler
+          - storage-service
+          - gpu-monitoring
+          - provider-daemon
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run tests
+        working-directory: ./${{ matrix.service }}
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+          go tool cover -html=coverage.out -o coverage.html
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./${{ matrix.service }}/coverage.out
+          flags: ${{ matrix.service }}
+
+  test-frontend:
+    name: Test Frontend Applications
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app:
+          - user-dashboard
+          - provider-web-app
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./${{ matrix.app }}
+        run: npm ci
+
+      - name: Run linter
+        working-directory: ./${{ matrix.app }}
+        run: npm run lint
+
+      - name: Run tests
+        working-directory: ./${{ matrix.app }}
+        run: npm test -- --coverage
+
+      - name: Build
+        working-directory: ./${{ matrix.app }}
+        run: npm run build
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Run integration tests
+        run: |
+          go test -v -tags=integration ./tests/integration/...
+
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Run Gosec Security Scanner
+        uses: securego/gosec@master
+        with:
+          args: './...'
+
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend, integration-tests, security-scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    strategy:
+      matrix:
+        service:
+          - api-gateway
+          - auth-service
+          - billing-service
+          - provider-registry
+          - scheduler
+          - storage-service
+          - gpu-monitoring
+          - provider-daemon
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://staging.dantegpu.com
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl set image deployment/api-gateway api-gateway=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api-gateway:${{ github.sha }}
+          kubectl set image deployment/auth-service auth-service=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/auth-service:${{ github.sha }}
+          kubectl rollout status deployment/api-gateway
+          kubectl rollout status deployment/auth-service
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://dantegpu.com
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: Deploy to Kubernetes (Blue-Green)
+        run: |
+          # Deploy to green environment
+          kubectl apply -f k8s/production/green/
+          
+          # Wait for green deployment to be ready
+          kubectl wait --for=condition=available --timeout=600s deployment/api-gateway-green
+          
+          # Run smoke tests
+          ./scripts/smoke-tests.sh https://green.dantegpu.com
+          
+          # Switch traffic to green
+          kubectl patch service api-gateway -p '{"spec":{"selector":{"version":"green"}}}'
+          
+          # Wait and monitor
+          sleep 60
+          
+          # If successful, delete blue deployment
+          kubectl delete -f k8s/production/blue/
+
+  notify:
+    name: Notify Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: always()
+
+    steps:
+      - name: Send Slack notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Deployment ${{ job.status }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+

@@ -1,0 +1,181 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'dantegpu-production'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - '/etc/prometheus/rules/*.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # API Gateway
+  - job_name: 'api-gateway'
+    consul_sd_configs:
+      - server: 'consul:8500'
+        services: ['api-gateway']
+    relabel_configs:
+      - source_labels: [__meta_consul_service]
+        target_label: service
+      - source_labels: [__meta_consul_node]
+        target_label: node
+
+  # Auth Service
+  - job_name: 'auth-service'
+    consul_sd_configs:
+      - server: 'consul:8500'
+        services: ['auth-service']
+    relabel_configs:
+      - source_labels: [__meta_consul_service]
+        target_label: service
+
+  # Billing Service
+  - job_name: 'billing-service'
+    consul_sd_configs:
+      - server: 'consul:8500'
+        services: ['billing-service']
+    relabel_configs:
+      - source_labels: [__meta_consul_service]
+        target_label: service
+
+  # Provider Registry
+  - job_name: 'provider-registry'
+    consul_sd_configs:
+      - server: 'consul:8500'
+        services: ['provider-registry']
+    relabel_configs:
+      - source_labels: [__meta_consul_service]
+        target_label: service
+
+  # Scheduler
+  - job_name: 'scheduler'
+    consul_sd_configs:
+      - server: 'consul:8500'
+        services: ['scheduler']
+    relabel_configs:
+      - source_labels: [__meta_consul_service]
+        target_label: service
+
+  # Storage Service
+  - job_name: 'storage-service'
+    consul_sd_configs:
+      - server: 'consul:8500'
+        services: ['storage-service']
+    relabel_configs:
+      - source_labels: [__meta_consul_service]
+        target_label: service
+
+  # GPU Monitoring Service
+  - job_name: 'gpu-monitoring'
+    consul_sd_configs:
+      - server: 'consul:8500'
+        services: ['gpu-monitoring']
+    relabel_configs:
+      - source_labels: [__meta_consul_service]
+        target_label: service
+
+  # Provider Daemon
+  - job_name: 'provider-daemon'
+    consul_sd_configs:
+      - server: 'consul:8500'
+        services: ['provider-daemon']
+    relabel_configs:
+      - source_labels: [__meta_consul_service]
+        target_label: service
+      - source_labels: [__meta_consul_node]
+        target_label: provider_node
+
+  # PostgreSQL
+  - job_name: 'postgresql'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'postgresql'
+
+  # Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'redis'
+
+  # NATS
+  - job_name: 'nats'
+    static_configs:
+      - targets: ['nats:7777']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'nats'
+
+  # MinIO
+  - job_name: 'minio'
+    metrics_path: /minio/v2/metrics/cluster
+    static_configs:
+      - targets: ['minio:9000']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'minio'
+
+  # Node Exporter (system metrics)
+  - job_name: 'node-exporter'
+    consul_sd_configs:
+      - server: 'consul:8500'
+        services: ['node-exporter']
+    relabel_configs:
+      - source_labels: [__meta_consul_node]
+        target_label: node
+
+  # cAdvisor (container metrics)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'cadvisor'
+
+  # Blackbox Exporter (endpoint monitoring)
+  - job_name: 'blackbox'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://api.dantegpu.com/health
+          - https://dashboard.dantegpu.com
+          - https://provider.dantegpu.com
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+# Remote write for long-term storage (optional)
+# remote_write:
+#   - url: "https://prometheus-remote-write-endpoint"
+#     basic_auth:
+#       username: "user"
+#       password: "password"
+

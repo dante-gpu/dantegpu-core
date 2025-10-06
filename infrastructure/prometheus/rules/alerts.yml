@@ -1,0 +1,225 @@
+groups:
+  - name: service_alerts
+    interval: 30s
+    rules:
+      # Service Down Alerts
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} on {{ $labels.instance }} has been down for more than 2 minutes."
+
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.service }}"
+          description: "{{ $labels.service }} has error rate above 5% (current: {{ $value }})"
+
+      # High Response Time
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time on {{ $labels.service }}"
+          description: "95th percentile response time is {{ $value }}s"
+
+  - name: database_alerts
+    interval: 30s
+    rules:
+      # Database Connection Pool Exhaustion
+      - alert: DatabaseConnectionPoolExhausted
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Database connections at {{ $value | humanizePercentage }}"
+
+      # High Database Query Time
+      - alert: HighDatabaseQueryTime
+        expr: rate(pg_stat_statements_mean_exec_time[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database query execution time"
+          description: "Average query time is {{ $value }}ms"
+
+      # Database Replication Lag
+      - alert: DatabaseReplicationLag
+        expr: pg_replication_lag > 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database replication lag detected"
+          description: "Replication lag is {{ $value }} seconds"
+
+  - name: blockchain_alerts
+    interval: 30s
+    rules:
+      # Failed Blockchain Transactions
+      - alert: HighBlockchainFailureRate
+        expr: rate(blockchain_transactions_failed_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High blockchain transaction failure rate"
+          description: "Blockchain transaction failure rate is {{ $value | humanizePercentage }}"
+
+      # Low Wallet Balance
+      - alert: LowPlatformWalletBalance
+        expr: platform_wallet_balance_dgpu < 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Platform wallet balance is low"
+          description: "Platform wallet has only {{ $value }} dGPU tokens"
+
+  - name: gpu_alerts
+    interval: 30s
+    rules:
+      # GPU Utilization
+      - alert: LowGPUUtilization
+        expr: avg(gpu_utilization_percent) < 20
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "Low GPU utilization across platform"
+          description: "Average GPU utilization is {{ $value }}%"
+
+      # GPU Temperature
+      - alert: HighGPUTemperature
+        expr: gpu_temperature_celsius > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High GPU temperature on {{ $labels.provider }}"
+          description: "GPU temperature is {{ $value }}°C"
+
+      # Provider Offline
+      - alert: ProviderOffline
+        expr: time() - provider_last_heartbeat_timestamp > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Provider {{ $labels.provider_id }} is offline"
+          description: "No heartbeat received for 5 minutes"
+
+  - name: billing_alerts
+    interval: 30s
+    rules:
+      # Failed Payments
+      - alert: HighPaymentFailureRate
+        expr: rate(billing_payments_failed_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High payment failure rate"
+          description: "Payment failure rate is {{ $value | humanizePercentage }}"
+
+      # Escrow Imbalance
+      - alert: EscrowImbalance
+        expr: abs(escrow_locked_total - escrow_expected_total) > 100
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Escrow balance mismatch detected"
+          description: "Escrow imbalance of {{ $value }} dGPU"
+
+  - name: resource_alerts
+    interval: 30s
+    rules:
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}%"
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value }}%"
+
+      # Disk Space Low
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100 < 15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Only {{ $value }}% disk space remaining"
+
+  - name: job_alerts
+    interval: 30s
+    rules:
+      # High Job Failure Rate
+      - alert: HighJobFailureRate
+        expr: rate(jobs_failed_total[10m]) / rate(jobs_total[10m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High job failure rate"
+          description: "Job failure rate is {{ $value | humanizePercentage }}"
+
+      # Long Job Queue
+      - alert: LongJobQueue
+        expr: job_queue_length > 100
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Job queue is growing"
+          description: "{{ $value }} jobs waiting in queue"
+
+  - name: security_alerts
+    interval: 30s
+    rules:
+      # High Failed Login Attempts
+      - alert: HighFailedLoginAttempts
+        expr: rate(auth_login_failed_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High failed login attempts"
+          description: "{{ $value }} failed login attempts per second"
+
+      # Suspicious API Activity
+      - alert: SuspiciousAPIActivity
+        expr: rate(api_requests_total{status="401"}[5m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Suspicious API activity detected"
+          description: "High rate of unauthorized API requests"
+
