@@ -1,0 +1,230 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dantegpu-config
+  namespace: dantegpu-staging
+data:
+  # Environment
+  ENVIRONMENT: "staging"
+  LOG_LEVEL: "debug"
+  
+  # Database
+  DB_HOST: "postgres-service.dantegpu-staging.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_SSL_MODE: "require"
+  DB_MAX_CONNECTIONS: "25"
+  DB_MAX_IDLE_CONNECTIONS: "5"
+  DB_CONNECTION_MAX_LIFETIME: "5m"
+  
+  # Redis
+  REDIS_HOST: "redis-service.dantegpu-staging.svc.cluster.local"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_MAX_RETRIES: "3"
+  REDIS_POOL_SIZE: "10"
+  
+  # NATS
+  NATS_URL: "nats://nats-service.dantegpu-staging.svc.cluster.local:4222"
+  NATS_CLUSTER_ID: "dantegpu-staging"
+  NATS_MAX_RECONNECTS: "10"
+  NATS_RECONNECT_WAIT: "2s"
+  
+  # Consul
+  CONSUL_HTTP_ADDR: "consul-service.dantegpu-staging.svc.cluster.local:8500"
+  CONSUL_DATACENTER: "dc1"
+  
+  # MinIO
+  MINIO_ENDPOINT: "minio-service.dantegpu-staging.svc.cluster.local:9000"
+  MINIO_USE_SSL: "false"
+  MINIO_REGION: "us-east-1"
+  
+  # Solana
+  SOLANA_RPC_URL: "https://api.devnet.solana.com"
+  SOLANA_WS_URL: "wss://api.devnet.solana.com"
+  SOLANA_COMMITMENT: "confirmed"
+  SOLANA_MAX_RETRIES: "3"
+  SOLANA_RETRY_DELAY: "1s"
+  DGPU_TOKEN_MINT: "7xUV6YR3rZMfExPqZiovQSUxpnHxr2KJJqFg1bFrpump"
+  
+  # JWT
+  JWT_ACCESS_TOKEN_EXPIRY: "15m"
+  JWT_REFRESH_TOKEN_EXPIRY: "7d"
+  JWT_ISSUER: "dantegpu-staging"
+  
+  # Rate Limiting
+  RATE_LIMIT_REQUESTS_PER_MINUTE: "60"
+  RATE_LIMIT_BURST: "10"
+  
+  # CORS
+  CORS_ALLOWED_ORIGINS: "https://staging.dantegpu.com,https://staging-provider.dantegpu.com"
+  CORS_ALLOWED_METHODS: "GET,POST,PUT,DELETE,OPTIONS,PATCH"
+  CORS_ALLOWED_HEADERS: "Content-Type,Authorization,X-Request-ID"
+  CORS_MAX_AGE: "3600"
+  
+  # Email (SMTP)
+  SMTP_HOST: "smtp.sendgrid.net"
+  SMTP_PORT: "587"
+  SMTP_FROM_EMAIL: "noreply@dantegpu.com"
+  SMTP_FROM_NAME: "DanteGPU Staging"
+  
+  # Monitoring
+  PROMETHEUS_PORT: "9090"
+  METRICS_ENABLED: "true"
+  TRACING_ENABLED: "true"
+  JAEGER_AGENT_HOST: "jaeger-agent.dantegpu-staging.svc.cluster.local"
+  JAEGER_AGENT_PORT: "6831"
+  
+  # Feature Flags
+  FEATURE_2FA_ENABLED: "true"
+  FEATURE_API_KEYS_ENABLED: "true"
+  FEATURE_OAUTH_ENABLED: "true"
+  FEATURE_MOBILE_APP_ENABLED: "false"
+  
+  # Billing
+  BILLING_PROCESS_INTERVAL: "1m"
+  PLATFORM_FEE_PERCENTAGE: "5"
+  MIN_RENTAL_DURATION_MINUTES: "1"
+  MAX_RENTAL_DURATION_HOURS: "168"
+  
+  # GPU
+  GPU_HEALTH_CHECK_INTERVAL: "30s"
+  GPU_METRICS_COLLECTION_INTERVAL: "10s"
+  PROVIDER_HEARTBEAT_TIMEOUT: "60s"
+  
+  # Jobs
+  JOB_QUEUE_SIZE: "1000"
+  JOB_MAX_RETRIES: "3"
+  JOB_TIMEOUT_HOURS: "24"
+  JOB_LOG_RETENTION_DAYS: "30"
+  
+  # Storage
+  STORAGE_MAX_FILE_SIZE_MB: "1024"
+  STORAGE_ALLOWED_EXTENSIONS: ".py,.ipynb,.txt,.json,.yaml,.yml,.sh,.md"
+  
+  # WebSocket
+  WEBSOCKET_PING_INTERVAL: "30s"
+  WEBSOCKET_PONG_TIMEOUT: "60s"
+  WEBSOCKET_MAX_MESSAGE_SIZE: "1048576"
+  
+  # Security
+  BCRYPT_COST: "12"
+  PASSWORD_MIN_LENGTH: "8"
+  SESSION_TIMEOUT_HOURS: "24"
+  MAX_LOGIN_ATTEMPTS: "5"
+  ACCOUNT_LOCKOUT_DURATION_MINUTES: "30"
+  
+  # API
+  API_VERSION: "v1"
+  API_TIMEOUT_SECONDS: "30"
+  API_MAX_REQUEST_SIZE_MB: "10"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: dantegpu-staging
+data:
+  nginx.conf: |
+    user nginx;
+    worker_processes auto;
+    error_log /var/log/nginx/error.log warn;
+    pid /var/run/nginx.pid;
+
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+
+        log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for"';
+
+        access_log /var/log/nginx/access.log main;
+
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+        keepalive_timeout 65;
+        types_hash_max_size 2048;
+
+        gzip on;
+        gzip_vary on;
+        gzip_proxied any;
+        gzip_comp_level 6;
+        gzip_types text/plain text/css text/xml text/javascript 
+                   application/json application/javascript application/xml+rss 
+                   application/rss+xml font/truetype font/opentype 
+                   application/vnd.ms-fontobject image/svg+xml;
+
+        # Rate limiting
+        limit_req_zone $binary_remote_addr zone=api_limit:10m rate=60r/m;
+        limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=10r/m;
+
+        # Upstream services
+        upstream api_gateway {
+            least_conn;
+            server api-gateway-service:8000 max_fails=3 fail_timeout=30s;
+        }
+
+        upstream auth_service {
+            least_conn;
+            server auth-service:8001 max_fails=3 fail_timeout=30s;
+        }
+
+        upstream billing_service {
+            least_conn;
+            server billing-service:8002 max_fails=3 fail_timeout=30s;
+        }
+
+        upstream provider_registry {
+            least_conn;
+            server provider-registry-service:8003 max_fails=3 fail_timeout=30s;
+        }
+
+        server {
+            listen 80;
+            server_name staging.dantegpu.com;
+
+            # Security headers
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header Referrer-Policy "no-referrer-when-downgrade" always;
+
+            # API Gateway
+            location /api/ {
+                limit_req zone=api_limit burst=10 nodelay;
+                proxy_pass http://api_gateway;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_connect_timeout 30s;
+                proxy_send_timeout 30s;
+                proxy_read_timeout 30s;
+            }
+
+            # WebSocket
+            location /ws/ {
+                proxy_pass http://api_gateway;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "upgrade";
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_read_timeout 86400;
+            }
+
+            # Health check
+            location /health {
+                access_log off;
+                return 200 "healthy\n";
+                add_header Content-Type text/plain;
+            }
+        }
+    }
+

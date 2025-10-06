@@ -1,0 +1,224 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: dantegpu-staging
+type: Opaque
+stringData:
+  POSTGRES_USER: dante_user
+  POSTGRES_PASSWORD: dante_password_staging_change_me
+  POSTGRES_DB: postgres
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: dantegpu-staging
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: dantegpu-staging
+spec:
+  serviceName: postgres-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_DB
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        - name: init-scripts
+          mountPath: /docker-entrypoint-initdb.d
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - dante_user
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - dante_user
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+      - name: init-scripts
+        configMap:
+          name: postgres-init-scripts
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: dantegpu-staging
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+    protocol: TCP
+  clusterIP: None
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: dantegpu-staging
+data:
+  01-create-databases.sql: |
+    -- Create all required databases
+    CREATE DATABASE dante_auth;
+    CREATE DATABASE dante_billing;
+    CREATE DATABASE dante_registry;
+    CREATE DATABASE dante_scheduler;
+    CREATE DATABASE dante_core;
+    
+    -- Grant permissions
+    GRANT ALL PRIVILEGES ON DATABASE dante_auth TO dante_user;
+    GRANT ALL PRIVILEGES ON DATABASE dante_billing TO dante_user;
+    GRANT ALL PRIVILEGES ON DATABASE dante_registry TO dante_user;
+    GRANT ALL PRIVILEGES ON DATABASE dante_scheduler TO dante_user;
+    GRANT ALL PRIVILEGES ON DATABASE dante_core TO dante_user;
+  
+  02-extensions.sql: |
+    -- Enable extensions for all databases
+    \c dante_auth;
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    
+    \c dante_billing;
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    
+    \c dante_registry;
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    
+    \c dante_scheduler;
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    
+    \c dante_core;
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-migrations
+  namespace: dantegpu-staging
+spec:
+  template:
+    spec:
+      containers:
+      - name: migrations
+        image: postgres:15-alpine
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Running database migrations..."
+          
+          # Wait for PostgreSQL to be ready
+          until pg_isready -h postgres-service -U dante_user; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+          
+          echo "PostgreSQL is ready. Running migrations..."
+          
+          # Run migrations for each database
+          for db in dante_auth dante_billing dante_registry dante_scheduler dante_core; do
+            echo "Migrating $db..."
+            for migration in /migrations/*.sql; do
+              echo "Running $migration on $db..."
+              PGPASSWORD=$POSTGRES_PASSWORD psql -h postgres-service -U dante_user -d $db -f $migration || true
+            done
+          done
+          
+          echo "Migrations completed!"
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        volumeMounts:
+        - name: migrations
+          mountPath: /migrations
+      volumes:
+      - name: migrations
+        configMap:
+          name: database-migrations
+      restartPolicy: OnFailure
+  backoffLimit: 3
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: database-migrations
+  namespace: dantegpu-staging
+data:
+  # Migrations will be mounted here
+  # In production, use an init container to copy from Git or ConfigMap
+  README.md: |
+    Database migrations are stored in the database/migrations directory.
+    They should be applied in order using the postgres-migrations job.
+
