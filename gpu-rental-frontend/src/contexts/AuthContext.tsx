@@ -49,16 +49,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const fetchUserProfile = async (token: string) => {
     try {
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
-      const response = await fetch(`${apiBaseUrl}/api/v1/auth/me`, {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8090'
+      const response = await fetch(`${apiBaseUrl}/profile`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       })
-      
+
       if (response.ok) {
-        const userData = await response.json()
-        setUser(userData)
+        const result = await response.json()
+        if (result.success && result.user) {
+          setUser(result.user)
+        } else {
+          localStorage.removeItem('auth_token')
+        }
       } else {
         localStorage.removeItem('auth_token')
       }
@@ -71,49 +75,67 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const login = async (email: string, password: string) => {
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
-    const response = await fetch(`${apiBaseUrl}/api/v1/auth/login`, {
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8090'
+    const response = await fetch(`${apiBaseUrl}/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ username: email, password })
+      body: JSON.stringify({ email, password })
     })
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.message || 'Login failed')
+      throw new Error(error.error || 'Login failed')
     }
 
     const data = await response.json()
+    if (!data.success) {
+      throw new Error(data.error || 'Login failed')
+    }
+
     localStorage.setItem('auth_token', data.token)
     setUser({
-      id: data.user_id,
-      name: data.username,
-      email: data.username,
-      role: data.role,
-      balance: 0 // Default balance
+      id: data.user.id,
+      name: data.user.name,
+      email: data.user.email,
+      role: 'user',
+      balance: data.user.balance || 0,
+      avatar: data.user.avatar,
+      verified: data.user.verified
     })
   }
 
   const register = async (email: string, password: string, name: string) => {
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
-    const response = await fetch(`${apiBaseUrl}/api/v1/auth/register`, {
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8090'
+    const response = await fetch(`${apiBaseUrl}/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ username: email, password, role: 'user' })
+      body: JSON.stringify({ email, password, name })
     })
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.message || 'Registration failed')
+      throw new Error(error.error || 'Registration failed')
     }
 
-    const { token, user: userData } = await response.json()
-    localStorage.setItem('auth_token', token)
-    setUser(userData)
+    const data = await response.json()
+    if (!data.success) {
+      throw new Error(data.error || 'Registration failed')
+    }
+
+    localStorage.setItem('auth_token', data.token)
+    setUser({
+      id: data.user.id,
+      name: data.user.name,
+      email: data.user.email,
+      role: 'user',
+      balance: data.user.balance || 0,
+      avatar: data.user.avatar,
+      verified: data.user.verified
+    })
   }
 
   const logout = () => {

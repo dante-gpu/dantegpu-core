@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   PlayIcon,
   PauseIcon,
@@ -7,91 +7,79 @@ import {
   CpuChipIcon,
   ComputerDesktopIcon
 } from '@heroicons/react/24/outline'
+import { useAuth } from '../contexts/AuthContext'
 
 interface Rental {
   id: string
-  gpu: {
-    name: string
-    memory: string
-    cores: number
-  }
-  status: 'running' | 'stopped' | 'paused'
-  startTime: string
-  endTime?: string
-  duration: number // in hours
-  costPerHour: number
-  totalCost: number
-  provider: string
+  gpu_id: string
+  gpu_model: string
+  gpu_vram: string
+  gpu_cuda_cores: number
+  provider_name: string
   location: string
-  instanceId: string
+  status: string
+  started_at: string
+  estimated_end: string
+  hourly_rate: number
+  escrow_amount: number
+  duration_hours: number
+  current_cost: number
 }
 
 function MyRentals() {
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active')
+  const [rentals, setRentals] = useState<Rental[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Mock rental data
-  const rentals: Rental[] = [
-    {
-      id: '1',
-      gpu: {
-        name: 'NVIDIA RTX 4090',
-        memory: '24GB GDDR6X',
-        cores: 16384
-      },
-      status: 'running',
-      startTime: '2024-01-15T10:30:00Z',
-      duration: 4.2,
-      costPerHour: 2.50,
-      totalCost: 10.50,
-      provider: 'CloudGPU Pro',
-      location: 'US-East',
-      instanceId: 'gpu-4090-001'
-    },
-    {
-      id: '2',
-      gpu: {
-        name: 'NVIDIA A100',
-        memory: '80GB HBM2e',
-        cores: 6912
-      },
-      status: 'stopped',
-      startTime: '2024-01-14T15:20:00Z',
-      endTime: '2024-01-14T17:50:00Z',
-      duration: 2.5,
-      costPerHour: 8.75,
-      totalCost: 21.88,
-      provider: 'Enterprise Cloud',
-      location: 'EU-West',
-      instanceId: 'gpu-a100-007'
-    },
-    {
-      id: '3',
-      gpu: {
-        name: 'NVIDIA RTX 3080',
-        memory: '10GB GDDR6X',
-        cores: 8704
-      },
-      status: 'paused',
-      startTime: '2024-01-14T09:15:00Z',
-      duration: 6.8,
-      costPerHour: 1.80,
-      totalCost: 12.24,
-      provider: 'GPU Farm',
-      location: 'US-West',
-      instanceId: 'gpu-3080-042'
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+
+  useEffect(() => {
+    if (user) {
+      fetchRentals()
     }
-  ]
+  }, [user])
 
-  const activeRentals = rentals.filter(r => r.status !== 'stopped')
-  const rentalHistory = rentals.filter(r => r.status === 'stopped')
+  const fetchRentals = async () => {
+    try {
+      setLoading(true)
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch(`${apiBaseUrl}/api/v1/rentals`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-User-ID': user?.id || ''
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch rentals')
+      }
+
+      const data = await response.json()
+      if (data.success) {
+        setRentals(data.rentals || [])
+      } else {
+        throw new Error(data.error || 'Failed to load rentals')
+      }
+    } catch (err) {
+      console.error('Failed to fetch rentals:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load rentals')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const activeRentals = rentals.filter(r => r.status === 'active')
+  const rentalHistory = rentals.filter(r => r.status !== 'active')
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'running':
+      case 'active':
         return <PlayIcon className="h-5 w-5 text-green-600" />
       case 'paused':
         return <PauseIcon className="h-5 w-5 text-yellow-600" />
-      case 'stopped':
+      case 'completed':
         return <StopIcon className="h-5 w-5 text-gray-600" />
       default:
         return <ClockIcon className="h-5 w-5 text-gray-600" />
@@ -100,25 +88,45 @@ function MyRentals() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'running':
+      case 'active':
         return 'text-green-600 bg-green-100'
       case 'paused':
         return 'text-yellow-600 bg-yellow-100'
-      case 'stopped':
+      case 'completed':
         return 'text-gray-600 bg-gray-100'
       default:
         return 'text-gray-600 bg-gray-100'
     }
   }
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString()
+  }
+
+  const formatDuration = (hours: number) => {
+    if (hours < 1) {
+      return `${Math.round(hours * 60)} minutes`
+    }
+    return `${hours.toFixed(1)} hours`
+  }
+
   const handleAction = (rentalId: string, action: 'start' | 'pause' | 'stop') => {
-    // Handle rental actions
     console.log(`${action} rental ${rentalId}`)
   }
 
   const openTerminal = (instanceId: string) => {
-    // Open terminal connection
     console.log(`Opening terminal for ${instanceId}`)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-cream-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading rentals...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -157,6 +165,18 @@ function MyRentals() {
       </div>
 
       {/* Rental Cards */}
+      {error ? (
+        <div className="text-center py-12 text-red-600">
+          <p>{error}</p>
+          <button onClick={fetchRentals} className="mt-4 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800">
+            Retry
+          </button>
+        </div>
+      ) : rentals.length === 0 ? (
+        <div className="text-center py-12 text-gray-600">
+          <p>No rentals found</p>
+        </div>
+      ) : (
       <div className="space-y-4">
         {(activeTab === 'active' ? activeRentals : rentalHistory).map((rental) => (
           <div key={rental.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -164,8 +184,8 @@ function MyRentals() {
               <div className="flex items-center space-x-3">
                 <CpuChipIcon className="h-8 w-8 text-blue-600" />
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{rental.gpu.name}</h3>
-                  <p className="text-sm text-gray-500">Instance: {rental.instanceId}</p>
+                  <h3 className="text-lg font-semibold text-gray-900">{rental.gpu_model}</h3>
+                  <p className="text-sm text-gray-500">GPU ID: {rental.gpu_id}</p>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
@@ -181,16 +201,16 @@ function MyRentals() {
                 <h4 className="font-medium text-gray-900">GPU Specifications</h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Memory:</span>
-                    <span>{rental.gpu.memory}</span>
+                    <span className="text-gray-500">VRAM:</span>
+                    <span>{rental.gpu_vram}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">CUDA Cores:</span>
-                    <span>{rental.gpu.cores.toLocaleString()}</span>
+                    <span>{rental.gpu_cuda_cores.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Provider:</span>
-                    <span>{rental.provider}</span>
+                    <span>{rental.provider_name}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Location:</span>
@@ -204,17 +224,17 @@ function MyRentals() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-500">Started:</span>
-                    <span>{new Date(rental.startTime).toLocaleString()}</span>
+                    <span>{formatDate(rental.started_at)}</span>
                   </div>
-                  {rental.endTime && (
+                  {rental.estimated_end && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Ended:</span>
-                      <span>{new Date(rental.endTime).toLocaleString()}</span>
+                      <span className="text-gray-500">Estimated End:</span>
+                      <span>{formatDate(rental.estimated_end)}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
                     <span className="text-gray-500">Duration:</span>
-                    <span>{rental.duration.toFixed(1)} hours</span>
+                    <span>{formatDuration(rental.duration_hours)}</span>
                   </div>
                 </div>
               </div>
@@ -224,13 +244,17 @@ function MyRentals() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-500">Rate:</span>
-                    <span>${rental.costPerHour}/hour</span>
+                    <span>{rental.hourly_rate} dGPU/hour</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Total Cost:</span>
-                    <span className="font-semibold text-green-600">${rental.totalCost.toFixed(2)}</span>
+                    <span className="text-gray-500">Escrow:</span>
+                    <span>{rental.escrow_amount} dGPU</span>
                   </div>
-                  {rental.status === 'running' && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Current Cost:</span>
+                    <span className="font-semibold text-green-600">{rental.current_cost.toFixed(2)} dGPU</span>
+                  </div>
+                  {rental.status === 'active' && (
                     <div className="text-xs text-gray-500">
                       * Cost updates in real-time
                     </div>
@@ -243,7 +267,7 @@ function MyRentals() {
             {activeTab === 'active' && (
               <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                 <div className="flex space-x-3">
-                  {rental.status === 'running' && (
+                  {rental.status === 'active' && (
                     <>
                       <button
                         onClick={() => handleAction(rental.id, 'pause')}
@@ -280,10 +304,10 @@ function MyRentals() {
                     </>
                   )}
                 </div>
-                
-                {rental.status === 'running' && (
+
+                {rental.status === 'active' && (
                   <button
-                    onClick={() => openTerminal(rental.instanceId)}
+                    onClick={() => openTerminal(rental.gpu_id)}
                     className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
                   >
                     <ComputerDesktopIcon className="h-4 w-4 mr-2" />
@@ -295,20 +319,6 @@ function MyRentals() {
           </div>
         ))}
       </div>
-
-      {(activeTab === 'active' ? activeRentals : rentalHistory).length === 0 && (
-        <div className="text-center py-12">
-          <CpuChipIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">
-            {activeTab === 'active' ? 'No active rentals' : 'No rental history'}
-          </h3>
-          <p className="mt-1 text-sm text-gray-500">
-            {activeTab === 'active' 
-              ? 'Start by renting a GPU from the marketplace.'
-              : 'Your completed rentals will appear here.'
-            }
-          </p>
-        </div>
       )}
       </div>
     </div>

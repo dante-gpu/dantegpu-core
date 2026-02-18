@@ -1,5 +1,5 @@
-
 import { Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import {
   CpuChipIcon,
   ClockIcon,
@@ -10,43 +10,81 @@ import {
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../contexts/AuthContext'
 
+interface Stats {
+  activeRentals: number
+  totalSpent: number
+  hoursUsed: number
+  savings: number
+}
+
+interface Rental {
+  id: string
+  gpu_id: string
+  gpu_model: string
+  status: string
+  started_at: string
+  hourly_rate: number
+  duration_hours: number
+  total_cost: number
+}
+
 function Dashboard() {
   const { user } = useAuth()
+  const [stats, setStats] = useState<Stats>({
+    activeRentals: 0,
+    totalSpent: 0,
+    hoursUsed: 0,
+    savings: 0
+  })
+  const [recentRentals, setRecentRentals] = useState<Rental[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Mock data - will be replaced with real API calls
-  const stats = {
-    activeRentals: 3,
-    totalSpent: 245.67,
-    hoursUsed: 127.5,
-    savings: 89.23
-  }
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
-  const recentRentals = [
-    {
-      id: '1',
-      gpu: 'NVIDIA RTX 4090',
-      status: 'running',
-      startTime: '2024-01-15T10:30:00Z',
-      cost: 2.50,
-      usage: '4.2 hours'
-    },
-    {
-      id: '2',
-      gpu: 'NVIDIA A100',
-      status: 'stopped',
-      startTime: '2024-01-14T15:20:00Z',
-      cost: 8.75,
-      usage: '2.5 hours'
-    },
-    {
-      id: '3',
-      gpu: 'NVIDIA RTX 3080',
-      status: 'running',
-      startTime: '2024-01-14T09:15:00Z',
-      cost: 1.80,
-      usage: '6.8 hours'
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true)
+      const token = localStorage.getItem('auth_token')
+
+      // Fetch stats
+      const statsResponse = await fetch(`${apiBaseUrl}/api/v1/stats/user`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json()
+        if (statsData.success) {
+          setStats(statsData.stats)
+        }
+      }
+
+      // Fetch recent rentals
+      const rentalsResponse = await fetch(`${apiBaseUrl}/api/v1/rentals?limit=3`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (rentalsResponse.ok) {
+        const rentalsData = await rentalsResponse.json()
+        if (rentalsData.success) {
+          setRecentRentals(rentalsData.rentals || [])
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err)
+      setError('Failed to load dashboard data')
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
 
   return (
     <div className="min-h-screen bg-cream-50 p-6">
@@ -162,37 +200,58 @@ function Dashboard() {
             View all
           </Link>
         </div>
-        <div className="space-y-4">
-          {recentRentals.map((rental) => (
-            <div key={rental.id} className="flex items-center justify-between p-4 border border-cream-200 rounded-lg">
-              <div className="flex items-center space-x-4">
-                <div className="flex-shrink-0">
-                  {rental.status === 'running' ? (
-                    <PlayIcon className="h-6 w-6 text-black" />
-                  ) : (
-                    <PauseIcon className="h-6 w-6 text-cream-600" />
-                  )}
+        {loading ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto"></div>
+            <p className="mt-2 text-cream-600">Loading rentals...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-8 text-red-600">
+            {error}
+          </div>
+        ) : recentRentals.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-cream-600">No rentals yet</p>
+            <Link to="/marketplace" className="text-black hover:underline mt-2 inline-block">
+              Browse GPUs to get started
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {recentRentals.map((rental) => (
+              <div key={rental.id} className="flex items-center justify-between p-4 border border-cream-200 rounded-lg">
+                <div className="flex items-center space-x-4">
+                  <div className="flex-shrink-0">
+                    {rental.status === 'active' ? (
+                      <PlayIcon className="h-6 w-6 text-black" />
+                    ) : (
+                      <PauseIcon className="h-6 w-6 text-cream-600" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-black">{rental.gpu_model}</p>
+                    <p className="text-sm text-cream-600">
+                      {rental.duration_hours.toFixed(1)}h • {rental.hourly_rate} dGPU/hour
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium text-black">{rental.gpu}</p>
+                <div className="text-right">
+                  <p className={`text-sm font-medium ${
+                    rental.status === 'active' ? 'text-black' : 'text-cream-600'
+                  }`}>
+                    {rental.status === 'active' ? 'Running' : 'Stopped'}
+                  </p>
                   <p className="text-sm text-cream-600">
-                    {rental.usage} • ${rental.cost}/hour
+                    {new Date(rental.started_at).toLocaleDateString()}
+                  </p>
+                  <p className="text-sm font-medium text-black">
+                    {rental.total_cost.toFixed(2)} dGPU
                   </p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className={`text-sm font-medium ${
-                  rental.status === 'running' ? 'text-black' : 'text-cream-600'
-                }`}>
-                  {rental.status === 'running' ? 'Running' : 'Stopped'}
-                </p>
-                <p className="text-sm text-cream-600">
-                  {new Date(rental.startTime).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
     </div>

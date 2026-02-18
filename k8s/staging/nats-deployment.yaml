@@ -1,0 +1,236 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-config
+  namespace: dantegpu-staging
+data:
+  nats.conf: |
+    # NATS Server Configuration for DanteGPU Staging
+    
+    # Client port
+    port: 4222
+    
+    # HTTP monitoring port
+    http_port: 8222
+    
+    # Server name
+    server_name: dantegpu-nats-staging
+    
+    # JetStream
+    jetstream {
+      store_dir: /data/jetstream
+      max_memory_store: 1GB
+      max_file_store: 10GB
+    }
+    
+    # Clustering (for future HA)
+    cluster {
+      name: dantegpu-staging
+      port: 6222
+    }
+    
+    # Logging
+    debug: false
+    trace: false
+    logtime: true
+    
+    # Limits
+    max_connections: 1000
+    max_payload: 1MB
+    max_pending: 10MB
+    
+    # Authentication (basic for staging)
+    authorization {
+      user: dante_nats
+      password: dante_nats_password_staging
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nats-pvc
+  namespace: dantegpu-staging
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: standard
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nats
+  namespace: dantegpu-staging
+spec:
+  serviceName: nats-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats
+  template:
+    metadata:
+      labels:
+        app: nats
+    spec:
+      containers:
+      - name: nats
+        image: nats:2.10-alpine
+        ports:
+        - containerPort: 4222
+          name: client
+        - containerPort: 8222
+          name: monitoring
+        - containerPort: 6222
+          name: cluster
+        command:
+        - nats-server
+        - --config
+        - /etc/nats/nats.conf
+        volumeMounts:
+        - name: nats-config
+          mountPath: /etc/nats
+        - name: nats-data
+          mountPath: /data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8222
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8222
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: nats-config
+        configMap:
+          name: nats-config
+      - name: nats-data
+        persistentVolumeClaim:
+          claimName: nats-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats-service
+  namespace: dantegpu-staging
+spec:
+  selector:
+    app: nats
+  ports:
+  - port: 4222
+    targetPort: 4222
+    protocol: TCP
+    name: client
+  - port: 8222
+    targetPort: 8222
+    protocol: TCP
+    name: monitoring
+  - port: 6222
+    targetPort: 6222
+    protocol: TCP
+    name: cluster
+  clusterIP: None
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nats-setup-streams
+  namespace: dantegpu-staging
+spec:
+  template:
+    spec:
+      containers:
+      - name: setup
+        image: natsio/nats-box:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Waiting for NATS to be ready..."
+          until nats-server --version; do sleep 2; done
+          
+          echo "Creating JetStream streams..."
+          
+          # Jobs stream
+          nats stream add JOBS \
+            --subjects "jobs.>" \
+            --storage file \
+            --retention limits \
+            --max-msgs=-1 \
+            --max-bytes=1GB \
+            --max-age=7d \
+            --replicas=1
+          
+          # Events stream
+          nats stream add EVENTS \
+            --subjects "events.>" \
+            --storage file \
+            --retention limits \
+            --max-msgs=-1 \
+            --max-bytes=1GB \
+            --max-age=30d \
+            --replicas=1
+          
+          # Metrics stream
+          nats stream add METRICS \
+            --subjects "metrics.>" \
+            --storage file \
+            --retention limits \
+            --max-msgs=-1 \
+            --max-bytes=2GB \
+            --max-age=7d \
+            --replicas=1
+          
+          # Billing stream
+          nats stream add BILLING \
+            --subjects "billing.>" \
+            --storage file \
+            --retention limits \
+            --max-msgs=-1 \
+            --max-bytes=1GB \
+            --max-age=90d \
+            --replicas=1
+          
+          # Logs stream
+          nats stream add LOGS \
+            --subjects "logs.>" \
+            --storage file \
+            --retention limits \
+            --max-msgs=-1 \
+            --max-bytes=5GB \
+            --max-age=7d \
+            --replicas=1
+          
+          # Provider stream
+          nats stream add PROVIDER \
+            --subjects "provider.>" \
+            --storage file \
+            --retention limits \
+            --max-msgs=-1 \
+            --max-bytes=1GB \
+            --max-age=30d \
+            --replicas=1
+          
+          echo "JetStream streams created successfully!"
+        env:
+        - name: NATS_URL
+          value: "nats://dante_nats:dante_nats_password_staging@nats-service:4222"
+      restartPolicy: OnFailure
+  backoffLimit: 3
+

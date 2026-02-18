@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import {
   CpuChipIcon,
   ClockIcon,
@@ -10,65 +10,135 @@ import {
   InformationCircleIcon
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
+import { useAuth } from '../contexts/AuthContext'
+
+interface GPU {
+  id: string
+  model: string
+  vram: string
+  cuda_cores: number
+  price_per_hour: number
+  status: string
+  provider_name: string
+  location: string
+  utilization: number
+  temperature: number
+}
 
 function GPUDetails() {
   const { id } = useParams()
-  console.log('GPU ID:', id) // Use the id parameter
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const [gpu, setGpu] = useState<GPU | null>(null)
   const [rentalDuration, setRentalDuration] = useState(1)
-  const [loading, setLoading] = useState(false)
+  const [escrowAmount, setEscrowAmount] = useState(10)
+  const [loading, setLoading] = useState(true)
+  const [renting, setRenting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // Mock GPU data - will be replaced with API call
-  const gpu = {
-    id: '1',
-    name: 'NVIDIA RTX 4090',
-    memory: '24GB GDDR6X',
-    cores: 16384,
-    pricePerHour: 2.50,
-    availability: 'available',
-    provider: 'CloudGPU Pro',
-    location: 'US-East',
-    performance: 95,
-    specs: {
-      architecture: 'Ada Lovelace',
-      memoryBandwidth: '1008 GB/s',
-      tensorCores: 512,
-      baseClock: '2230 MHz',
-      boostClock: '2520 MHz',
-      memoryInterface: '384-bit',
-      powerConsumption: '450W'
-    },
-    features: [
-      'CUDA Compute Capability 8.9',
-      'RT Cores 3rd Gen',
-      'Tensor Cores 4th Gen',
-      'NVENC/NVDEC Support',
-      'PCIe 4.0 Support',
-      'DLSS 3.0 Support'
-    ],
-    benchmarks: {
-      gaming: 98,
-      compute: 95,
-      aiTraining: 92,
-      rendering: 96
-    },
-    description: 'The NVIDIA GeForce RTX 4090 is the ultimate GeForce GPU. It brings an enormous leap in performance, efficiency, and AI-powered graphics. Experience ultra-high performance gaming, incredibly detailed virtual worlds with ray tracing, unprecedented productivity, and new ways to create.'
-  }
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
-  const handleRent = async () => {
-    setLoading(true)
-    
+  useEffect(() => {
+    if (id) {
+      fetchGPU()
+    }
+  }, [id])
+
+  const fetchGPU = async () => {
     try {
-      // API call to rent GPU
-      await new Promise(resolve => setTimeout(resolve, 2000)) // Mock delay
-      toast.success(`GPU rented successfully for ${rentalDuration} hour${rentalDuration > 1 ? 's' : ''}!`)
-    } catch (error) {
-      toast.error('Failed to rent GPU')
+      setLoading(true)
+      const response = await fetch(`${apiBaseUrl}/api/v1/gpus/${id}`)
+
+      if (!response.ok) {
+        throw new Error('GPU not found')
+      }
+
+      const data = await response.json()
+      if (data.success) {
+        setGpu(data.gpu)
+      } else {
+        throw new Error(data.error || 'Failed to load GPU')
+      }
+    } catch (err) {
+      console.error('Failed to fetch GPU:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load GPU')
     } finally {
       setLoading(false)
     }
   }
 
-  const totalCost = gpu.pricePerHour * rentalDuration
+  const handleRent = async () => {
+    if (!user) {
+      toast.error('Please login to rent a GPU')
+      navigate('/login')
+      return
+    }
+
+    if (!gpu) return
+
+    setRenting(true)
+
+    try {
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch(`${apiBaseUrl}/api/v1/rentals`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-User-ID': user.id
+        },
+        body: JSON.stringify({
+          gpu_id: gpu.id,
+          escrow_amount: escrowAmount,
+          duration_hours: rentalDuration
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to rent GPU')
+      }
+
+      const data = await response.json()
+      if (data.success) {
+        toast.success(`GPU rented successfully for ${rentalDuration} hour${rentalDuration > 1 ? 's' : ''}!`)
+        navigate('/my-rentals')
+      } else {
+        throw new Error(data.error || 'Failed to rent GPU')
+      }
+    } catch (error) {
+      console.error('Rental error:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to rent GPU')
+    } finally {
+      setRenting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-cream-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading GPU details...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !gpu) {
+    return (
+      <div className="min-h-screen bg-cream-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error || 'GPU not found'}</p>
+          <Link to="/marketplace" className="text-black hover:underline">
+            Back to Marketplace
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  const totalCost = gpu.price_per_hour * rentalDuration
 
   return (
     <div className="min-h-screen bg-cream-50 p-6">
@@ -88,13 +158,18 @@ function GPUDetails() {
           <div className="flex items-center space-x-4">
             <CpuChipIcon className="h-12 w-12 text-blue-600" />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{gpu.name}</h1>
-              <p className="text-gray-600">{gpu.provider} • {gpu.location}</p>
+              <h1 className="text-2xl font-bold text-gray-900">{gpu.model}</h1>
+              <p className="text-gray-600">{gpu.provider_name} • {gpu.location}</p>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-bold text-green-600">${gpu.pricePerHour}</div>
-            <div className="text-sm text-gray-500">per hour</div>
+            <div className="text-3xl font-bold text-green-600">{gpu.price_per_hour}</div>
+            <div className="text-sm text-gray-500">dGPU/hour</div>
+            <div className={`mt-2 px-3 py-1 rounded-full text-sm font-medium inline-block ${
+              gpu.status === 'available' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}>
+              {gpu.status === 'available' ? 'Available' : 'Unavailable'}
+            </div>
           </div>
         </div>
       </div>
@@ -102,92 +177,86 @@ function GPUDetails() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Description */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Description</h2>
-            <p className="text-gray-700 leading-relaxed">{gpu.description}</p>
-          </div>
-
           {/* Specifications */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Specifications</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Architecture:</span>
-                  <span className="font-medium">{gpu.specs.architecture}</span>
+                  <span className="text-gray-500">Model:</span>
+                  <span className="font-medium">{gpu.model}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">CUDA Cores:</span>
-                  <span className="font-medium">{gpu.cores.toLocaleString()}</span>
+                  <span className="font-medium">{gpu.cuda_cores.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Memory:</span>
-                  <span className="font-medium">{gpu.memory}</span>
+                  <span className="text-gray-500">VRAM:</span>
+                  <span className="font-medium">{gpu.vram}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Memory Bandwidth:</span>
-                  <span className="font-medium">{gpu.specs.memoryBandwidth}</span>
+                  <span className="text-gray-500">Provider:</span>
+                  <span className="font-medium">{gpu.provider_name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Memory Interface:</span>
-                  <span className="font-medium">{gpu.specs.memoryInterface}</span>
+                  <span className="text-gray-500">Location:</span>
+                  <span className="font-medium">{gpu.location}</span>
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Base Clock:</span>
-                  <span className="font-medium">{gpu.specs.baseClock}</span>
+                  <span className="text-gray-500">Status:</span>
+                  <span className={`font-medium ${gpu.status === 'available' ? 'text-green-600' : 'text-red-600'}`}>
+                    {gpu.status}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Boost Clock:</span>
-                  <span className="font-medium">{gpu.specs.boostClock}</span>
+                  <span className="text-gray-500">Utilization:</span>
+                  <span className="font-medium">{gpu.utilization}%</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Tensor Cores:</span>
-                  <span className="font-medium">{gpu.specs.tensorCores}</span>
+                  <span className="text-gray-500">Temperature:</span>
+                  <span className="font-medium">{gpu.temperature}°C</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Power Consumption:</span>
-                  <span className="font-medium">{gpu.specs.powerConsumption}</span>
+                  <span className="text-gray-500">Price:</span>
+                  <span className="font-medium text-green-600">{gpu.price_per_hour} dGPU/hour</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Features */}
+          {/* Real-time Metrics */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Features</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {gpu.features.map((feature, index) => (
-                <div key={index} className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                  <span className="text-gray-700">{feature}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Benchmarks */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Performance Benchmarks</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Real-time Metrics</h2>
             <div className="space-y-4">
-              {Object.entries(gpu.benchmarks).map(([category, score]) => (
-                <div key={category}>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-sm font-medium text-gray-700 capitalize">
-                      {category.replace(/([A-Z])/g, ' $1').trim()}
-                    </span>
-                    <span className="text-sm text-gray-500">{score}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full"
-                      style={{ width: `${score}%` }}
-                    ></div>
-                  </div>
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-sm font-medium text-gray-700">GPU Utilization</span>
+                  <span className="text-sm text-gray-500">{gpu.utilization}%</span>
                 </div>
-              ))}
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full"
+                    style={{ width: `${gpu.utilization}%` }}
+                  ></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-sm font-medium text-gray-700">Temperature</span>
+                  <span className="text-sm text-gray-500">{gpu.temperature}°C</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full ${
+                      gpu.temperature < 60 ? 'bg-green-600' :
+                      gpu.temperature < 80 ? 'bg-yellow-600' : 'bg-red-600'
+                    }`}
+                    style={{ width: `${(gpu.temperature / 100) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -217,36 +286,57 @@ function GPUDetails() {
                 </select>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Escrow Amount (dGPU)
+                </label>
+                <input
+                  type="number"
+                  value={escrowAmount}
+                  onChange={(e) => setEscrowAmount(Number(e.target.value))}
+                  min={totalCost}
+                  step={1}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Minimum: {totalCost.toFixed(2)} dGPU (estimated cost)
+                </p>
+              </div>
+
               <div className="border-t pt-4">
                 <div className="flex justify-between text-sm mb-2">
                   <span>Rate per hour:</span>
-                  <span>${gpu.pricePerHour}</span>
+                  <span>{gpu.price_per_hour} dGPU</span>
                 </div>
                 <div className="flex justify-between text-sm mb-2">
                   <span>Duration:</span>
                   <span>{rentalDuration} hour{rentalDuration > 1 ? 's' : ''}</span>
                 </div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span>Estimated Cost:</span>
+                  <span>{totalCost.toFixed(2)} dGPU</span>
+                </div>
                 <div className="flex justify-between font-semibold text-lg border-t pt-2">
-                  <span>Total Cost:</span>
-                  <span className="text-green-600">${totalCost.toFixed(2)}</span>
+                  <span>Escrow Amount:</span>
+                  <span className="text-green-600">{escrowAmount} dGPU</span>
                 </div>
               </div>
 
               <button
                 onClick={handleRent}
-                disabled={loading || gpu.availability !== 'available'}
+                disabled={renting || gpu.status !== 'available'}
                 className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
-                  gpu.availability === 'available' && !loading
+                  gpu.status === 'available' && !renting
                     ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                 }`}
               >
-                {loading ? (
+                {renting ? (
                   <div className="flex items-center justify-center">
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                     Processing...
                   </div>
-                ) : gpu.availability === 'available' ? (
+                ) : gpu.status === 'available' ? (
                   <>
                     <PlayIcon className="inline h-5 w-5 mr-2" />
                     Rent Now

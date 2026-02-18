@@ -1,0 +1,192 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: dantegpu-production
+data:
+  init-databases.sh: |
+    #!/bin/bash
+    set -e
+    
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+        CREATE DATABASE dante_auth;
+        CREATE DATABASE dante_billing;
+        CREATE DATABASE dante_registry;
+        CREATE DATABASE dante_scheduler;
+        CREATE DATABASE dante_core;
+        
+        GRANT ALL PRIVILEGES ON DATABASE dante_auth TO dante_user;
+        GRANT ALL PRIVILEGES ON DATABASE dante_billing TO dante_user;
+        GRANT ALL PRIVILEGES ON DATABASE dante_registry TO dante_user;
+        GRANT ALL PRIVILEGES ON DATABASE dante_scheduler TO dante_user;
+        GRANT ALL PRIVILEGES ON DATABASE dante_core TO dante_user;
+    EOSQL
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: dantegpu-production
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: "CHANGE_ME_IN_PRODUCTION"
+  POSTGRES_USER: "dante_user"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: dantegpu-production
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Gi
+  storageClassName: fast-ssd
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: dantegpu-production
+spec:
+  serviceName: postgres-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_DB
+          value: "postgres"
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        - name: postgres-init
+          mountPath: /docker-entrypoint-initdb.d
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2000m"
+          limits:
+            memory: "8Gi"
+            cpu: "4000m"
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - dante_user
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - dante_user
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+      - name: postgres-init
+        configMap:
+          name: postgres-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: dantegpu-production
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+    protocol: TCP
+  clusterIP: None
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-migrations
+  namespace: dantegpu-production
+spec:
+  template:
+    spec:
+      containers:
+      - name: migrations
+        image: postgres:15-alpine
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Waiting for PostgreSQL to be ready..."
+          until pg_isready -h postgres-service -U dante_user; do
+            sleep 2
+          done
+          
+          echo "Running migrations..."
+          for db in dante_auth dante_billing dante_registry dante_scheduler dante_core; do
+            echo "Migrating $db..."
+            psql -h postgres-service -U dante_user -d $db -f /migrations/schema.sql || true
+          done
+          
+          echo "Migrations completed!"
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        volumeMounts:
+        - name: migrations
+          mountPath: /migrations
+      volumes:
+      - name: migrations
+        configMap:
+          name: database-migrations
+      restartPolicy: OnFailure
+  backoffLimit: 3
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: database-migrations
+  namespace: dantegpu-production
+data:
+  schema.sql: |
+    -- Placeholder for migrations
+    -- In production, mount actual migration files
+    SELECT 1;
+
