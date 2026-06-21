@@ -18,14 +18,14 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          - api-gateway
-          - auth-service
-          - billing-payment-service
-          - provider-registry-service
-          - scheduler-orchestrator-service
-          - gpu-service
-          - rental-service
-          - storage-service
+          - services/api-gateway
+          - services/auth-service
+          - services/billing-payment-service
+          - services/provider-registry-service
+          - services/scheduler-orchestrator-service
+          - services/gpu-service
+          - services/rental-service
+          - services/storage-service
 
     steps:
       - uses: actions/checkout@v3
@@ -88,8 +88,8 @@ jobs:
       fail-fast: false
       matrix:
         app:
-          - user-dashboard
-          - provider-web-app
+          - clients/gpu-rental-frontend
+          - clients/provider-web-app
 
     steps:
       - uses: actions/checkout@v3
@@ -230,14 +230,14 @@ jobs:
     strategy:
       matrix:
         service:
-          - api-gateway
-          - auth-service
-          - billing-payment-service
-          - provider-registry-service
-          - scheduler-orchestrator-service
-          - storage-service
-          - gpu-monitoring-service
-          - provider-daemon
+          - services/api-gateway
+          - services/auth-service
+          - services/billing-payment-service
+          - services/provider-registry-service
+          - services/scheduler-orchestrator-service
+          - services/storage-service
+          - services/gpu-monitoring-service
+          - clients/provider-daemon
 
     steps:
       - uses: actions/checkout@v3

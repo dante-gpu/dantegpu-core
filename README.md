@@ -173,21 +173,25 @@ cd billing-payment-service && go build ./...
 ## Repository layout
 
 ```
-api-gateway/                  Edge router: JWT auth, CORS, Consul/NATS, proxy
-auth-service/                 PostgreSQL + bcrypt + JWT identity
-provider-registry-service/    Provider + GPU-capability registry (Consul)
-gpu-service/                  Read-only GPU catalog
-rental-service/               Rental reservations and lifecycle
-billing-payment-service/      dGPU pricing engine + Solana wallets/settlement
-scheduler-orchestrator-service/  NATS job consumer + (stub) K8s extender
-storage-service/              MinIO-backed object storage
-gpu-monitoring-service/       nvidia-smi metrics + WebSocket stream
-redis-cache-service/          Cache helpers (library, imported by services)
-provider-daemon/              Provider node agent: GPU detect, Docker/script exec
-provider-gui/                 Tauri desktop app for providers
-dantegpu-device-plugin/       Kubernetes GPU device plugin
-gpu-rental-frontend/          React/Vite renter dashboard
-common/                       Shared Go types and utilities
+services/                     Backend Go microservices (one module each)
+  api-gateway/                Edge router: JWT auth, CORS, Consul/NATS, proxy
+  auth-service/               PostgreSQL + bcrypt + JWT identity
+  provider-registry-service/  Provider + GPU-capability registry (Consul)
+  gpu-service/                Read-only GPU catalog
+  rental-service/             Rental reservations and lifecycle
+  billing-payment-service/    Pricing engine + Solana wallets/settlement (USDC)
+  scheduler-orchestrator-service/  NATS job consumer + (stub) K8s extender
+  storage-service/            MinIO-backed object storage
+  gpu-monitoring-service/     nvidia-smi metrics + WebSocket stream
+  redis-cache-service/        Cache helpers (library, imported by services)
+clients/                      Apps and node agents
+  gpu-rental-frontend/        React/Vite renter dashboard
+  provider-gui/               Tauri desktop app for providers
+  provider-daemon/            Provider node agent: GPU detect, Docker/script exec
+  provider-web-app/           Provider marketing/landing
+contracts/                    On-chain settlement integration (Covenant) + future programs
+common/                       Shared Go types and utilities (root module)
+cmd/                          Root-module executables (provider, rental, tooling)
 database/migrations/          13 SQL migrations (the canonical schema)
 infrastructure/               Redis/MinIO/NATS/Consul/Prometheus config
 monitoring-logging-service/   Prometheus + Grafana + Loki + Alertmanager stack

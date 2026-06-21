@@ -103,7 +103,7 @@ services:
   # Auth Service (Python/FastAPI)
   auth-service:
     build:
-      context: ./auth-service
+      context: ./services/auth-service
       dockerfile: Dockerfile
     container_name: dante-auth-service
     environment:
@@ -128,7 +128,7 @@ services:
   # Billing Payment Service (Go)
   billing-service:
     build:
-      context: ./billing-payment-service
+      context: ./services/billing-payment-service
       dockerfile: Dockerfile
     container_name: dante-billing-service
     environment:
@@ -159,7 +159,7 @@ services:
   # Provider Registry Service (Go)
   provider-registry:
     build:
-      context: ./provider-registry-service
+      context: ./services/provider-registry-service
       dockerfile: Dockerfile
     container_name: dante-provider-registry
     environment:
@@ -187,7 +187,7 @@ services:
   # Storage Service (Go)
   storage-service:
     build:
-      context: ./storage-service
+      context: ./services/storage-service
       dockerfile: Dockerfile
     container_name: dante-storage-service
     environment:
@@ -220,7 +220,7 @@ services:
   # Scheduler Orchestrator Service (Go)
   scheduler-service:
     build:
-      context: ./scheduler-orchestrator-service
+      context: ./services/scheduler-orchestrator-service
       dockerfile: Dockerfile
     container_name: dante-scheduler-service
     environment:
@@ -251,7 +251,7 @@ services:
   # API Gateway (Go)
   api-gateway:
     build:
-      context: ./api-gateway
+      context: ./services/api-gateway
       dockerfile: Dockerfile
     container_name: dante-api-gateway
     environment:
@@ -288,7 +288,7 @@ services:
   # Frontend Web Application (Next.js)
   frontend:
     build:
-      context: ./frontend/web-app
+      context: ./clients/gpu-rental-frontend
       dockerfile: Dockerfile
     container_name: dante-frontend
     environment:

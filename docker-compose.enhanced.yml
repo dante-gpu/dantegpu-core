@@ -103,7 +103,7 @@ services:
 
   # Original Services (Enhanced)
   api-gateway:
-    build: ./api-gateway
+    build: ./services/api-gateway
     ports:
       - "8080:8080"
     depends_on:
@@ -115,7 +115,7 @@ services:
       - REDIS_URL=redis:6379
 
   auth-service:
-    build: ./auth-service
+    build: ./services/auth-service
     ports:
       - "8090:8090"
     depends_on:
@@ -127,7 +127,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
 
   gpu-service:
-    build: ./gpu-service
+    build: ./services/gpu-service
     ports:
       - "8091:8091"
     depends_on:
@@ -136,7 +136,7 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
 
   rental-service:
-    build: ./rental-service
+    build: ./services/rental-service
     ports:
       - "8092:8092"
     depends_on:
@@ -145,7 +145,7 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
 
   billing-payment-service:
-    build: ./billing-payment-service
+    build: ./services/billing-payment-service
     ports:
       - "8082:8082"
     depends_on:
@@ -156,7 +156,7 @@ services:
       - PAYMENT_SERVICE_URL=http://payment-integration:8096
 
   provider-registry-service:
-    build: ./provider-registry-service
+    build: ./services/provider-registry-service
     ports:
       - "8081:8081"
     depends_on:
@@ -180,7 +180,7 @@ services:
       - GPU_MONITORING_URL=http://gpu-monitoring:8095
 
   storage-service:
-    build: ./storage-service
+    build: ./services/storage-service
     ports:
       - "8083:8083"
     depends_on:

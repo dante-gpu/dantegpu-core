@@ -155,7 +155,7 @@ services:
   # Backend Services
   auth-service:
     build:
-      context: ./auth-service
+      context: ./services/auth-service
       dockerfile: Dockerfile
     container_name: dante-auth-service
     ports:
@@ -182,7 +182,7 @@ services:
 
   dashboard-service:
     build:
-      context: ./auth-service
+      context: ./services/auth-service
       dockerfile: dashboard_service.Dockerfile
     container_name: dante-dashboard-service
     ports:
@@ -209,7 +209,7 @@ services:
 
   gpu-monitor-service:
     build:
-      context: ./auth-service
+      context: ./services/auth-service
       dockerfile: gpu_monitor_service.Dockerfile
     container_name: dante-gpu-monitor-service
     ports:
@@ -240,7 +240,7 @@ services:
 
   billing-payment-service:
     build:
-      context: ./billing-payment-service
+      context: ./services/billing-payment-service
       dockerfile: Dockerfile
     container_name: dante-billing-service
     ports:
@@ -271,7 +271,7 @@ services:
 
   storage-service:
     build:
-      context: ./storage-service
+      context: ./services/storage-service
       dockerfile: Dockerfile
     container_name: dante-storage-service
     ports:
@@ -297,7 +297,7 @@ services:
 
   scheduler-orchestrator-service:
     build:
-      context: ./scheduler-orchestrator-service
+      context: ./services/scheduler-orchestrator-service
       dockerfile: Dockerfile
     container_name: dante-scheduler-service
     ports:
@@ -325,7 +325,7 @@ services:
   # Mock Provider Daemon for Testing
   mock-provider-daemon:
     build:
-      context: ./provider-daemon
+      context: ./clients/provider-daemon
       dockerfile: Dockerfile
     container_name: dante-mock-provider
     environment:
@@ -351,7 +351,7 @@ services:
   # Frontend Service
   frontend:
     build:
-      context: ./provider-web-app
+      context: ./clients/provider-web-app
       dockerfile: Dockerfile
     container_name: dante-frontend
     ports:
@@ -368,7 +368,7 @@ services:
 
   provider-registry-service:
     build:
-      context: ./provider-registry-service
+      context: ./services/provider-registry-service
       dockerfile: Dockerfile
     container_name: dante-provider-registry-service
     ports:
@@ -396,7 +396,7 @@ services:
 
   api-gateway:
     build:
-      context: ./api-gateway
+      context: ./services/api-gateway
       dockerfile: Dockerfile
     container_name: dante-api-gateway
     ports:
