@@ -152,6 +152,22 @@ func (c *Client) GetJob(ctx context.Context, jobID string) (*Job, error) {
 	return &job, nil
 }
 
+// ListJobs returns jobs filtered by taker wallet (GET /api/jobs). Used by the
+// settlement crank to find delivered jobs awaiting finalize.
+func (c *Client) ListJobs(ctx context.Context, taker string) ([]Job, error) {
+	path := "/api/jobs?limit=100"
+	if taker != "" {
+		path += "&taker=" + taker
+	}
+	var out struct {
+		Jobs []Job `json:"jobs"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Jobs, nil
+}
+
 // GetBalance returns a wallet's USDC balance as Covenant sees it
 // (GET /api/balance/{wallet}). Pure read.
 func (c *Client) GetBalance(ctx context.Context, wallet string) (decimal.Decimal, error) {

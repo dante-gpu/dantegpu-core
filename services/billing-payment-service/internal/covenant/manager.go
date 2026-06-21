@@ -3,6 +3,7 @@ package covenant
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gagliardetto/solana-go"
@@ -151,4 +152,38 @@ func (m *Manager) SettleRentalJob(ctx context.Context, jobPDA, poster, taker str
 		return "", fmt.Errorf("covenant: invalid taker: %w", err)
 	}
 	return m.signer.Finalize(ctx, job, posterPub, takerPub)
+}
+
+// SettleRipeJobs is the provider-payout crank. It finalizes every delivered,
+// undisputed Covenant job (taker == platform in Phase 1) whose challenge window
+// has elapsed, releasing the escrow on-chain. Returns the number settled.
+// Already-finalized or transient errors are tolerated and retried next tick.
+func (m *Manager) SettleRipeJobs(ctx context.Context) (int, error) {
+	if !m.Enabled() {
+		return 0, nil
+	}
+	platform := m.signer.PlatformWallet().String()
+	jobs, err := m.client.ListJobs(ctx, platform)
+	if err != nil {
+		return 0, err
+	}
+	now := time.Now().UTC()
+	settled := 0
+	for _, j := range jobs {
+		if j.ChallengeEnd == nil || !now.After(*j.ChallengeEnd) {
+			continue // window not elapsed yet
+		}
+		if j.WorkHash == "" {
+			continue // not delivered
+		}
+		switch strings.ToLower(string(j.Status)) {
+		case "settled", "cancelled", "disputed":
+			continue
+		}
+		if _, ferr := m.SettleRentalJob(ctx, j.ID, platform, platform); ferr != nil {
+			continue
+		}
+		settled++
+	}
+	return settled, nil
 }

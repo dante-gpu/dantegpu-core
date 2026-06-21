@@ -207,7 +207,7 @@ func (s *Signer) CreateJob(ctx context.Context, amount decimal.Decimal, specHash
 	data = append(data, borshI64(deadlineUnix)...)
 	data = append(data, borshU64(challengePeriodSeconds)...)
 
-	ix := &solana.GenericInstruction{
+	createIx := &solana.GenericInstruction{
 		ProgID: s.programID,
 		AccountValues: solana.AccountMetaSlice{
 			meta(poster, true, true),
@@ -223,9 +223,23 @@ func (s *Signer) CreateJob(ctx context.Context, amount decimal.Decimal, specHash
 		DataBytes: data,
 	}
 
-	sig, err := s.signAndSend(ctx, ix)
+	// Phase 1 custodial: the platform is both poster and taker. Accept the job in
+	// the same transaction so it is immediately submittable and finalizable.
+	acceptData := append([]byte{}, discAcceptJob...)
+	acceptData = append(acceptData, specHash[:]...)
+	acceptIx := &solana.GenericInstruction{
+		ProgID: s.programID,
+		AccountValues: solana.AccountMetaSlice{
+			meta(poster, true, true), // taker == poster (platform)
+			meta(job, true, false),
+			meta(poster, false, false),
+		},
+		DataBytes: acceptData,
+	}
+
+	sig, err := s.signAndSend(ctx, createIx, acceptIx)
 	if err != nil {
-		return nil, fmt.Errorf("covenant: create_job: %w", err)
+		return nil, fmt.Errorf("covenant: create+accept job: %w", err)
 	}
 	sumHex := fmt.Sprintf("%x", specHash[:])
 	return &CreateJobResult{JobPDA: job, SpecHashHex: sumHex, SpecJSON: specJSON, TxSignature: sig, PosterWallet: poster.String()}, nil
@@ -313,14 +327,14 @@ func (s *Signer) Finalize(ctx context.Context, job, poster, taker solana.PublicK
 	return s.signAndSend(ctx, ix)
 }
 
-// signAndSend assembles a transaction with the instruction, signs it with the
-// platform key, and submits it.
-func (s *Signer) signAndSend(ctx context.Context, ix solana.Instruction) (string, error) {
+// signAndSend assembles a transaction from one or more instructions, signs it
+// with the platform key, and submits it. Multiple instructions land atomically.
+func (s *Signer) signAndSend(ctx context.Context, ixs ...solana.Instruction) (string, error) {
 	recent, err := s.rpc.GetLatestBlockhash(ctx, rpc.CommitmentConfirmed)
 	if err != nil {
 		return "", fmt.Errorf("get blockhash: %w", err)
 	}
-	tx, err := solana.NewTransaction([]solana.Instruction{ix}, recent.Value.Blockhash, solana.TransactionPayer(s.key.PublicKey()))
+	tx, err := solana.NewTransaction(ixs, recent.Value.Blockhash, solana.TransactionPayer(s.key.PublicKey()))
 	if err != nil {
 		return "", fmt.Errorf("new tx: %w", err)
 	}

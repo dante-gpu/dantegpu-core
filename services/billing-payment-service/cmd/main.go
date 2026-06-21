@@ -82,6 +82,24 @@ func main() {
 		logger,
 	)
 
+	// Start the settlement crank: after the challenge window, finalize delivered
+	// Covenant jobs on-chain (the provider payout). No-op if covenant is disabled.
+	if covenantMgr.Enabled() {
+		go func() {
+			ticker := time.NewTicker(2 * time.Minute)
+			defer ticker.Stop()
+			for range ticker.C {
+				n, cerr := covenantMgr.SettleRipeJobs(context.Background())
+				if cerr != nil {
+					logger.Warn("Settlement crank error", zap.Error(cerr))
+				} else if n > 0 {
+					logger.Info("Settlement crank finalized jobs", zap.Int("count", n))
+				}
+			}
+		}()
+		logger.Info("Covenant settlement crank started", zap.Duration("interval", 2*time.Minute))
+	}
+
 	// Setup HTTP server
 	server := setupHTTPServer(cfg, billingService, logger)
 
