@@ -29,8 +29,11 @@ account.
 
 ## Status
 
-Integration design pending implementation (ROADMAP M3). Until then,
-`billing-payment-service` runs a custodial DB-ledger model on devnet. The work here:
+Integration design is written: see [COVENANT_INTEGRATION.md](COVENANT_INTEGRATION.md)
+for the rental-to-Covenant-job mapping, the verified Covenant settlement
+semantics, and the phased plan (M3.1 USDC denomination through M3.6 metered
+settlement). Until it lands, `billing-payment-service` runs a custodial DB-ledger
+model on devnet. The work here:
 
 - Map a DanteGPU rental session to a Covenant job (createJob / submitWork /
   finalizePayment / raiseDispute).
