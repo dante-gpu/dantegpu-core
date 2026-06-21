@@ -1,7 +1,5 @@
 # DanteGPU Core - System Architecture
 
-{🙏 Don't worry about what the f😳ck I be doing, I'm Mock King AKINCI}
-
 ## Overview
 
 DanteGPU Core is a decentralized GPU rental platform built on Solana blockchain, enabling users to rent GPU compute power for AI/ML workloads while providers earn cryptocurrency.
@@ -58,7 +56,7 @@ DanteGPU Core is a decentralized GPU rental platform built on Solana blockchain,
 ### Backend Services
 
 #### API Gateway (Go)
-- **Port**: 8000
+- **Port**: 8080
 - **Purpose**: Single entry point for all client requests
 - **Responsibilities**:
   - Request routing to microservices
@@ -69,23 +67,25 @@ DanteGPU Core is a decentralized GPU rental platform built on Solana blockchain,
   - WebSocket hub for real-time updates
 - **Dependencies**: Redis (rate limiting), Consul (service discovery)
 
-#### Auth Service (Python + FastAPI)
-- **Port**: 8001
+#### Auth Service (Go)
+- **Port**: 8090
 - **Purpose**: User authentication and authorization
-- **Responsibilities**:
-  - User registration and email verification
-  - Login with JWT tokens (15min access, 7d refresh)
-  - Password reset flow
-  - Two-factor authentication (TOTP, SMS, Email)
-  - OAuth2 integration (Google, GitHub)
-  - API key management
-  - Role-based access control (RBAC)
-  - Session management (PostgreSQL + Redis)
+- **Implemented**:
+  - User registration with bcrypt password hashing
+  - Login issuing JWT tokens (24h expiry, HS256)
+  - Profile endpoint
+- **Not yet implemented** (despite earlier claims): email verification, password
+  reset, two-factor authentication, OAuth2, API key management, refresh tokens.
+  The schema reserves tables for some of these, but the service does not use them.
 - **Database**: `dante_auth`
-- **Security**: Bcrypt (cost 12), account lockout after 5 failed attempts
+- **Security**: bcrypt password hashing. Note: the JWT secret currently has a
+  hardcoded default that must be moved to required configuration (see ROADMAP
+  Phase 1).
+- **Note**: a separate `ory-kratos-integration` exists as an experimental
+  alternative identity path; `auth-service` is the canonical one.
 
 #### Billing Service (Go)
-- **Port**: 8002
+- **Port**: 8082
 - **Purpose**: Blockchain transactions and billing
 - **Responsibilities**:
   - Solana wallet management
@@ -95,12 +95,12 @@ DanteGPU Core is a decentralized GPU rental platform built on Solana blockchain,
   - Platform fee collection (5%)
   - Provider payouts
   - Transaction history
-- **Blockchain**: Solana mainnet-beta
-- **Token**: dGPU (7xUV6YR3rZMfExPqZiovQSUxpnHxr2KJJqFg1bFrpump)
+- **Blockchain**: Solana (devnet by default; mainnet-beta is a Phase 6 target)
+- **Token**: dGPU SPL token (configurable mint; default `7xUV6YR3rZMfExPqZiovQSUxpnHxr2KJJqFg1bFrpump`)
 - **Database**: `dante_billing`
 
 #### Provider Registry (Go)
-- **Port**: 8003
+- **Port**: 8081
 - **Purpose**: GPU provider and capability management
 - **Responsibilities**:
   - Provider registration and verification
@@ -112,7 +112,7 @@ DanteGPU Core is a decentralized GPU rental platform built on Solana blockchain,
 - **Database**: `dante_registry`
 
 #### Scheduler (Go)
-- **Port**: 8004
+- **Port**: 8084
 - **Purpose**: Job scheduling and execution
 - **Responsibilities**:
   - Job submission and validation
@@ -126,7 +126,7 @@ DanteGPU Core is a decentralized GPU rental platform built on Solana blockchain,
 - **Message Queue**: NATS JetStream (JOBS stream)
 
 #### Storage Service (Go)
-- **Port**: 8005
+- **Port**: 8083
 - **Purpose**: File storage and management
 - **Responsibilities**:
   - Dataset upload/download
@@ -137,7 +137,7 @@ DanteGPU Core is a decentralized GPU rental platform built on Solana blockchain,
 - **Buckets**: datasets, models, job-outputs, logs, backups, temp, user-uploads, provider-data
 
 #### GPU Monitoring (Go)
-- **Port**: 8006
+- **Port**: 8092
 - **Purpose**: Real-time GPU metrics collection
 - **Responsibilities**:
   - GPU utilization tracking
