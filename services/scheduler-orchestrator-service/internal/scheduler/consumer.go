@@ -311,7 +311,10 @@ func (jc *JobConsumer) scheduleJob(internalJob *models.InternalJobRepresentation
 		return false, nil
 	}
 
-	// Validate billing requirements and start session
+	// Validate billing requirements and start session. The resulting session id
+	// is threaded into the dispatched task so the provider daemon can meter usage
+	// and end the session.
+	var sessionID string
 	if jc.billingClient != nil {
 		// Validate user has sufficient balance
 		gpuModel := jc.findProviderGPUType(suitableProvider)
@@ -367,14 +370,18 @@ func (jc *JobConsumer) scheduleJob(internalJob *models.InternalJobRepresentation
 			zap.String("estimated_hourly_cost", sessionResp.EstimatedHourlyCost.String()),
 		)
 
-		// Store session ID in task parameters for later reference
-		jc.logger.Info("Session ID will be passed to task execution",
-			zap.String("session_id", sessionResp.Session.ID.String()),
-		)
+		// Capture the session id so it can be threaded into the dispatched task.
+		sessionID = sessionResp.Session.ID.String()
 	}
 
 	// --- Task Creation & Dispatch ---
 	task := models.NewTask(&job, suitableProvider.ID.String())
+	if sessionID != "" {
+		if task.JobParams == nil {
+			task.JobParams = make(map[string]interface{})
+		}
+		task.JobParams["session_id"] = sessionID
+	}
 	taskJSON, err := json.Marshal(task)
 	if err != nil {
 		jc.logger.Error("Failed to marshal task for dispatch", zap.String("job_id", job.ID), zap.Error(err))
