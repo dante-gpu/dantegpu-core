@@ -123,6 +123,35 @@ func main() {
 
 	billingClient := billing.NewClient(&cfg.BillingClientConfig, logger)
 
+	// Wire real GPU metrics into the billing monitor so per-minute usage updates
+	// reflect actual hardware instead of mock values.
+	billingClient.SetMetricsProvider(func(ctx context.Context, gpuID string) (*billing.GPUMetrics, error) {
+		metrics, err := gpuDetector.GetMetrics(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if len(metrics) == 0 {
+			return nil, fmt.Errorf("no GPU metrics available")
+		}
+		m := metrics[0]
+		for _, cand := range metrics {
+			if cand.ID == gpuID {
+				m = cand
+				break
+			}
+		}
+		var vramUtil uint8
+		if m.VRAMTotal > 0 {
+			vramUtil = uint8(m.VRAMUsed * 100 / m.VRAMTotal)
+		}
+		return &billing.GPUMetrics{
+			Utilization:     m.Utilization,
+			VRAMUtilization: vramUtil,
+			PowerDraw:       m.PowerDraw,
+			Temperature:     m.Temperature,
+		}, nil
+	})
+
 	// Initialize Executors
 	scriptExec := executor.NewScriptExecutor()
 	dockerExec, err := executor.NewDockerExecutor(&cfg.ExecutorConfig, logger, billingClient, gpuDetector)

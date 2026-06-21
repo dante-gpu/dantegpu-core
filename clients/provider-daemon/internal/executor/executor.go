@@ -503,16 +503,21 @@ func (de *DockerExecutor) Execute(ctx context.Context, task *models.Task, worksp
 		finalResult.Error = fmt.Errorf("container %s exited with code %d", resp.ID, statusCode)
 	}
 
-	// Stop billing
+	// Stop billing: end the rental session upstream, keyed on the session_id the
+	// scheduler placed in the task.
 	if de.billingClient != nil {
 		actualDuration := time.Since(containerStartTime)
-		errBill := de.billingClient.StopBilling(ctx, task.JobID, task.UserID, actualDuration.Seconds()/3600) // Use ctx from Execute
-		if errBill != nil {
-			jobLogger.Error("Failed to stop billing for job", zap.String("job_id", task.JobID), zap.Error(errBill))
+		if sessionIDStr, ok := task.JobParams["session_id"].(string); ok && sessionIDStr != "" {
+			if sessionID, perr := uuid.Parse(sessionIDStr); perr == nil {
+				if errBill := de.billingClient.StopBilling(ctx, sessionID, "job_finished"); errBill != nil {
+					jobLogger.Error("Failed to end billing session", zap.String("job_id", task.JobID), zap.Error(errBill))
+				} else {
+					jobLogger.Info("Billing session ended", zap.String("job_id", task.JobID), zap.String("session_id", sessionID.String()), zap.Float64("duration_hours", actualDuration.Seconds()/3600))
+				}
+			}
+		} else {
+			jobLogger.Debug("No session_id in task; skipping session end.", zap.String("job_id", task.JobID))
 		}
-		jobLogger.Info("Billing stopped for job", zap.String("job_id", task.JobID), zap.Float64("billed_duration_hours", actualDuration.Seconds()/3600))
-	} else {
-		jobLogger.Info("Billing client not available, skipping StopBilling call.", zap.String("job_id", task.JobID))
 	}
 
 	jobLogger.Info("Docker execution finished",

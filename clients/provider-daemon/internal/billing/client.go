@@ -19,6 +19,17 @@ type Client struct {
 	baseURL    string
 	httpClient *http.Client
 	logger     *zap.Logger
+
+	// metricsProvider supplies real GPU metrics for the billing monitor. It is
+	// wired from the daemon's GPU detector. When nil, no real metrics are
+	// available and usage reporting fails loudly instead of sending mock data.
+	metricsProvider func(ctx context.Context, gpuID string) (*GPUMetrics, error)
+}
+
+// SetMetricsProvider wires a real GPU-metrics source (the daemon's detector)
+// into the billing monitor.
+func (c *Client) SetMetricsProvider(fn func(ctx context.Context, gpuID string) (*GPUMetrics, error)) {
+	c.metricsProvider = fn
 }
 
 // Config represents billing client configuration
@@ -193,16 +204,13 @@ type GPUMetrics struct {
 	Temperature     uint8  `json:"temperature_c"`
 }
 
-// getGPUMetrics gets current GPU metrics
+// getGPUMetrics gets current GPU metrics from the wired detector. If no metrics
+// provider is set, it returns an error rather than fabricating usage.
 func (c *Client) getGPUMetrics(gpuID string) (*GPUMetrics, error) {
-	// This would integrate with the GPU detector
-	// For now, return mock data
-	return &GPUMetrics{
-		Utilization:     75,  // mock data
-		VRAMUtilization: 50,  // mock data
-		PowerDraw:       150, // mock data
-		Temperature:     65,  // mock data
-	}, nil
+	if c.metricsProvider == nil {
+		return nil, fmt.Errorf("no GPU metrics provider wired; cannot report real usage for %s", gpuID)
+	}
+	return c.metricsProvider(context.Background(), gpuID)
 }
 
 // StartBilling informs the billing service that a task's billable period has begun.
@@ -213,27 +221,49 @@ func (c *Client) StartBilling(ctx context.Context, jobID string, userID string, 
 		zap.String("gpuInstanceID", gpuInstanceID),
 		zap.Float64("pricePerHour", pricePerHour),
 	)
-	// TODO: This method needs to be implemented to correctly interact with the billing service API.
-	// It might involve creating or activating a session, or directly logging the start of a billable event.
-	// The current parameters (jobID, userID, gpuInstanceID, pricePerHour) should be used.
-	// For now, this is a stub.
-	c.logger.Warn("StartBilling is currently a stub and does not actually initiate a billing event with the service.")
-	return nil // Placeholder
+	// Session creation is owned upstream: the scheduler/rental flow calls
+	// billing-payment-service /start-session (which needs the provider UUID,
+	// renter, and priced GPU spec) and passes the resulting session_id to the
+	// daemon in the task. The daemon only meters (Monitor) and ends the session
+	// (StopBilling). This call is a no-op kept for the executor call site.
+	c.logger.Debug("StartBilling: session is created upstream; daemon meters by session_id")
+	return nil
 }
 
-// StopBilling informs the billing service that a task's billable period has ended.
-func (c *Client) StopBilling(ctx context.Context, jobID string, userID string, durationHours float64) error {
-	c.logger.Info("StopBilling called",
-		zap.String("jobID", jobID),
-		zap.String("userID", userID),
-		zap.Float64("durationHours", durationHours),
-	)
-	// TODO: This method needs to be implemented to correctly interact with the billing service API.
-	// It might involve ending a session, or logging the end of a billable event with its duration.
-	// The current parameters (jobID, userID, durationHours) should be used.
-	// For now, this is a stub.
-	c.logger.Warn("StopBilling is currently a stub and does not actually terminate a billing event with the service correctly.")
-	return nil // Placeholder
+// EndSessionRequest is the body for ending a rental session.
+type EndSessionRequest struct {
+	SessionID uuid.UUID `json:"session_id"`
+	Reason    string    `json:"reason,omitempty"`
+}
+
+// StopBilling ends the rental session in the billing service. The session is
+// keyed by the id the scheduler placed in the task; the daemon only needs to
+// signal completion.
+func (c *Client) StopBilling(ctx context.Context, sessionID uuid.UUID, reason string) error {
+	body, err := json.Marshal(EndSessionRequest{SessionID: sessionID, Reason: reason})
+	if err != nil {
+		return fmt.Errorf("failed to marshal end-session request: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/api/v1/billing/end-session", c.baseURL)
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("failed to create end-session request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("failed to end session: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("billing service returned status %d ending session", resp.StatusCode)
+	}
+
+	c.logger.Info("Rental session ended", zap.String("session_id", sessionID.String()), zap.String("reason", reason))
+	return nil
 }
 
 // CheckSessionStatus checks if a session is still considered active by the billing service.
