@@ -10,19 +10,23 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/dante-gpu/dante-backend/api-gateway/internal/billing"
+	"github.com/dante-gpu/dante-backend/api-gateway/internal/config"
+	"github.com/dante-gpu/dante-backend/api-gateway/internal/upstream"
 )
 
 // BillingHandler handles billing-related HTTP requests
 type BillingHandler struct {
 	billingClient *billing.Client
 	logger        *zap.Logger
+	cfg           *config.Config
 }
 
 // NewBillingHandler creates a new billing handler
-func NewBillingHandler(billingClient *billing.Client, logger *zap.Logger) *BillingHandler {
+func NewBillingHandler(billingClient *billing.Client, logger *zap.Logger, cfg *config.Config) *BillingHandler {
 	return &BillingHandler{
 		billingClient: billingClient,
 		logger:        logger,
+		cfg:           cfg,
 	}
 }
 
@@ -165,15 +169,8 @@ func (h *BillingHandler) GetUserWallet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// This would need to be implemented in the billing service
-	// For now, return a placeholder response
-	response := map[string]interface{}{
-		"message": "Get user wallet endpoint not yet implemented",
-		"user_id": userID,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	url := upstream.BuildURL(h.cfg.BillingServiceURL, "/api/v1/user/"+userID+"/wallet")
+	upstream.GetJSON(w, r.Context(), url, r.Header.Get("Authorization"), h.logger)
 }
 
 // GetUserBalance gets a user's dGPU token balance
@@ -184,18 +181,8 @@ func (h *BillingHandler) GetUserBalance(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// This would need to be implemented in the billing service
-	// For now, return a placeholder response
-	response := map[string]interface{}{
-		"user_id":           userID,
-		"balance":           "100.0",
-		"locked_balance":    "0.0",
-		"available_balance": "100.0",
-		"currency":          "dGPU",
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	url := upstream.BuildURL(h.cfg.BillingServiceURL, "/api/v1/user/"+userID+"/balance")
+	upstream.GetJSON(w, r.Context(), url, r.Header.Get("Authorization"), h.logger)
 }
 
 // GetGPUMarketplace gets available GPUs with pricing
@@ -211,42 +198,13 @@ func (h *BillingHandler) GetGPUMarketplace(w http.ResponseWriter, r *http.Reques
 		zap.String("max_price", maxPrice),
 	)
 
-	// This would integrate with provider registry and pricing service
-	// For now, return a placeholder response
-	response := map[string]interface{}{
-		"gpus": []map[string]interface{}{
-			{
-				"provider_id":      "provider-1",
-				"gpu_model":        "NVIDIA RTX 4090",
-				"vram_total":       24576,
-				"vram_available":   24576,
-				"hourly_rate":      "0.50",
-				"vram_rate_per_gb": "0.02",
-				"power_rate":       "0.001",
-				"location":         "US-East",
-				"availability":     "available",
-			},
-			{
-				"provider_id":      "provider-2",
-				"gpu_model":        "NVIDIA A100",
-				"vram_total":       81920,
-				"vram_available":   81920,
-				"hourly_rate":      "2.00",
-				"vram_rate_per_gb": "0.025",
-				"power_rate":       "0.001",
-				"location":         "US-West",
-				"availability":     "available",
-			},
-		},
-		"filters": map[string]interface{}{
-			"gpu_type":  gpuType,
-			"min_vram":  minVRAM,
-			"max_price": maxPrice,
-		},
+	// Forward to the gpu-service catalog, preserving any query filters.
+	path := "/gpus"
+	if r.URL.RawQuery != "" {
+		path += "?" + r.URL.RawQuery
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	url := upstream.BuildURL(h.cfg.GpuServiceURL, path)
+	upstream.GetJSON(w, r.Context(), url, r.Header.Get("Authorization"), h.logger)
 }
 
 // EstimateJobCost estimates the cost of a GPU rental job

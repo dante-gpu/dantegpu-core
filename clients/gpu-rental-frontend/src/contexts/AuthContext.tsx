@@ -49,8 +49,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const fetchUserProfile = async (token: string) => {
     try {
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8090'
-      const response = await fetch(`${apiBaseUrl}/profile`, {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+      const response = await fetch(`${apiBaseUrl}/auth/profile`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -75,8 +75,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const login = async (email: string, password: string) => {
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8090'
-    const response = await fetch(`${apiBaseUrl}/login`, {
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+    const response = await fetch(`${apiBaseUrl}/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -107,8 +107,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const register = async (email: string, password: string, name: string) => {
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8090'
-    const response = await fetch(`${apiBaseUrl}/register`, {
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+    const response = await fetch(`${apiBaseUrl}/auth/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

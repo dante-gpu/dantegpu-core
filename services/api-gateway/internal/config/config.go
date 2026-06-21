@@ -19,6 +19,12 @@ type Config struct {
 	JwtExpiration  time.Duration `yaml:"jwt_expiration"`  // I'll store this as duration
 	RequestTimeout time.Duration `yaml:"request_timeout"` // Adding the request timeout here
 	LokiURL        string        `yaml:"loki_url"`
+
+	// Downstream service base URLs. The gateway forwards real requests to these
+	// instead of serving mock data. Override per environment via env vars.
+	AuthServiceURL    string `yaml:"auth_service_url"`
+	GpuServiceURL     string `yaml:"gpu_service_url"`
+	BillingServiceURL string `yaml:"billing_service_url"`
 }
 
 // LoadConfig reads configuration from the given YAML file path.
@@ -34,6 +40,10 @@ func LoadConfig(path string) (*Config, error) {
 		JwtExpiration:  60 * time.Minute, // Defaulting to 60 minutes
 		RequestTimeout: 60 * time.Second, // Defaulting to 60 seconds
 		LokiURL:        "http://loki:3100",
+
+		AuthServiceURL:    "http://localhost:8090",
+		GpuServiceURL:     "http://localhost:8084",
+		BillingServiceURL: "http://localhost:8082",
 	}
 
 	// I need to check if the config file exists.
@@ -102,6 +112,15 @@ func overrideFromEnv(cfg *Config) {
 	if jwtSecret := os.Getenv("JWT_SECRET"); jwtSecret != "" {
 		cfg.JwtSecret = jwtSecret
 	}
+	if v := os.Getenv("AUTH_SERVICE_URL"); v != "" {
+		cfg.AuthServiceURL = v
+	}
+	if v := os.Getenv("GPU_SERVICE_URL"); v != "" {
+		cfg.GpuServiceURL = v
+	}
+	if v := os.Getenv("BILLING_SERVICE_URL"); v != "" {
+		cfg.BillingServiceURL = v
+	}
 	// Note: Overriding time.Duration from env vars would require parsing.
 	// For now, keeping it simple and only overriding string/simple types.
 }
@@ -132,6 +151,15 @@ func applyDefaultsIfNotSet(cfg *Config, defaults *Config) {
 	}
 	if cfg.RequestTimeout == 0 {
 		cfg.RequestTimeout = defaults.RequestTimeout
+	}
+	if cfg.AuthServiceURL == "" {
+		cfg.AuthServiceURL = defaults.AuthServiceURL
+	}
+	if cfg.GpuServiceURL == "" {
+		cfg.GpuServiceURL = defaults.GpuServiceURL
+	}
+	if cfg.BillingServiceURL == "" {
+		cfg.BillingServiceURL = defaults.BillingServiceURL
 	}
 }
 

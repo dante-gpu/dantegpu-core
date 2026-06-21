@@ -65,9 +65,10 @@ func main() {
 	r.Use(customMiddleware.CORS()) // Add CORS middleware
 	r.Use(middleware.Timeout(cfg.RequestTimeout))
 
-	// Create billing client
+	// Create billing client pointed at the real billing-payment-service
+	// (not the gateway itself, which the hardcoded :8080 used to do).
 	billingConfig := &billing.Config{
-		BaseURL: "http://localhost:8080", // Billing service URL
+		BaseURL: cfg.BillingServiceURL,
 		Timeout: 30 * time.Second,
 	}
 	billingClient := billing.NewClient(billingConfig, logger)
@@ -75,7 +76,7 @@ func main() {
 	// I need to create instances of my handlers.
 	authHandler := handlers.NewAuthHandler(logger, cfg)
 	jobHandler := handlers.NewJobHandler(logger, cfg, nc)
-	billingHandler := handlers.NewBillingHandler(billingClient, logger)
+	billingHandler := handlers.NewBillingHandler(billingClient, logger, cfg)
 	// Create load balancer and proxy handler (even if Consul connection failed, to avoid nil pointers)
 	lb := loadbalancer.NewRoundRobin()
 	proxyHandler := handlers.NewProxyHandler(logger, cfg, consulClient, lb)
