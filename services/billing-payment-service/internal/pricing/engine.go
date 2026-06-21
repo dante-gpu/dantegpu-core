@@ -20,10 +20,10 @@ type Engine struct {
 
 // Config represents pricing engine configuration
 type Config struct {
-	// Base rates by GPU model (dGPU tokens per hour)
+	// Base rates by GPU model (USDC per hour)
 	BaseRates map[string]float64 `yaml:"base_rates"`
 
-	// VRAM pricing (dGPU tokens per GB per hour)
+	// VRAM pricing (USDC per GB per hour)
 	VRAMRatePerGB decimal.Decimal `yaml:"vram_rate_per_gb"`
 
 	// Power consumption multiplier (additional cost per watt per hour)

@@ -21,10 +21,13 @@ database:
   max_lifetime: "1h"
 
 # Solana Blockchain Configuration
+# Settlement is in USDC. Defaults to devnet; mainnet-beta is a Phase 6 target.
 solana:
-  rpc_url: "https://api.mainnet-beta.solana.com"
-  ws_url: "wss://api.mainnet-beta.solana.com"
-  dgpu_token_address: "7xUV6YR3rZMfExPqZiovQSUxpnHxr2KJJqFg1bFrpump"
+  rpc_url: "https://api.devnet.solana.com"
+  ws_url: "wss://api.devnet.solana.com"
+  # USDC SPL mint (devnet). Mainnet USDC: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+  token_address: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+  token_decimals: 6
   platform_wallet: "YOUR_PLATFORM_WALLET_ADDRESS"
   private_key_path: "/secrets/solana_private_key"
   commitment: "confirmed"
@@ -33,7 +36,7 @@ solana:
 
 # Pricing Configuration
 pricing:
-  # Base hourly rates in dGPU tokens
+  # Base hourly rates in USDC
   base_rates:
     # NVIDIA GPUs
     "nvidia-geforce-rtx-4090": 0.50
@@ -66,7 +69,7 @@ pricing:
     # Default rate for unknown GPUs
     "default": 0.25
 
-  # VRAM pricing (dGPU tokens per GB per hour)
+  # VRAM pricing (USDC per GB per hour)
   vram_rate_per_gb: 0.02
   
   # Power consumption multiplier (additional cost per watt per hour)
@@ -116,10 +119,10 @@ consul:
 
 # Wallet Configuration
 wallet:
-  # Minimum balance required to start a session (dGPU tokens)
+  # Minimum balance required to start a session (USDC)
   minimum_balance: 1.0
   
-  # Low balance warning threshold (dGPU tokens)
+  # Low balance warning threshold (USDC)
   low_balance_threshold: 5.0
   
   # Auto-refill settings
@@ -135,8 +138,8 @@ security:
     burst_size: 20
   
   # Transaction limits
-  max_transaction_amount: 1000.0  # dGPU tokens
-  daily_withdrawal_limit: 5000.0  # dGPU tokens
+  max_transaction_amount: 1000.0  # USDC
+  daily_withdrawal_limit: 5000.0  # USDC
   
   # Encryption
   encryption_key_path: "/secrets/encryption_key"
@@ -168,7 +171,7 @@ billing:
 
 # Provider Payout Configuration
 payouts:
-  # Minimum amount required for payout (dGPU tokens)
+  # Minimum amount required for payout (USDC)
   minimum_payout_amount: 10.0
   
   # Payout processing schedule (cron format)

@@ -16,7 +16,7 @@ const (
 	WalletTypePlatform WalletType = "platform"
 )
 
-// Wallet represents a dGPU token wallet for users and providers
+// Wallet represents a USDC wallet for users and providers
 type Wallet struct {
 	ID              uuid.UUID       `json:"id" db:"id"`
 	UserID          string          `json:"user_id" db:"user_id"`
@@ -106,7 +106,7 @@ const (
 	TransactionStatusCancelled TransactionStatus = "cancelled"
 )
 
-// Transaction represents a dGPU token transaction
+// Transaction represents a USDC transaction
 type Transaction struct {
 	ID                uuid.UUID         `json:"id" db:"id"`
 	FromWalletID      *uuid.UUID        `json:"from_wallet_id,omitempty" db:"from_wallet_id"`
@@ -180,14 +180,14 @@ type TransactionHistoryResponse struct {
 	Offset       int           `json:"offset"`
 }
 
-// DepositRequest represents a request to deposit dGPU tokens
+// DepositRequest represents a request to deposit USDCs
 type DepositRequest struct {
 	WalletID        uuid.UUID       `json:"wallet_id" validate:"required"`
 	Amount          decimal.Decimal `json:"amount" validate:"required,gt=0"`
 	SolanaSignature string          `json:"solana_signature" validate:"required"`
 }
 
-// WithdrawalRequest represents a request to withdraw dGPU tokens
+// WithdrawalRequest represents a request to withdraw USDCs
 type WithdrawalRequest struct {
 	WalletID      uuid.UUID       `json:"wallet_id" validate:"required"`
 	Amount        decimal.Decimal `json:"amount" validate:"required,gt=0"`

@@ -143,7 +143,7 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("Solana RPC URL is required")
 	}
 	if c.Solana.TokenAddress == "" {
-		return fmt.Errorf("dGPU token address is required")
+		return fmt.Errorf("token address is required")
 	}
 	if c.Solana.PlatformWallet == "" {
 		return fmt.Errorf("platform wallet address is required")

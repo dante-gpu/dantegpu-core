@@ -17,14 +17,15 @@ import (
 	"go.uber.org/zap"
 )
 
-// Client represents a Solana blockchain client for dGPU token operations
+// Client represents a Solana blockchain client for SPL token (USDC) operations
 type Client struct {
 	rpcClient *rpc.Client
 	wsClient  *ws.Client
 	logger    *zap.Logger
 
-	// dGPU token configuration
+	// SPL settlement token configuration (USDC by default; 6 decimals)
 	tokenMint      solana.PublicKey
+	tokenDecimals  uint8
 	platformWallet solana.PublicKey
 	privateKey     solana.PrivateKey
 
@@ -38,7 +39,8 @@ type Client struct {
 type Config struct {
 	RPCURL         string        `yaml:"rpc_url"`
 	WSURL          string        `yaml:"ws_url"`
-	TokenAddress   string        `yaml:"dgpu_token_address"`
+	TokenAddress   string        `yaml:"token_address"`
+	TokenDecimals  uint8         `yaml:"token_decimals"`
 	PlatformWallet string        `yaml:"platform_wallet"`
 	PrivateKeyPath string        `yaml:"private_key_path"`
 	Commitment     string        `yaml:"commitment"`
@@ -46,7 +48,7 @@ type Config struct {
 	MaxRetries     int           `yaml:"max_retries"`
 }
 
-// NewClient creates a new Solana client for dGPU token operations
+// NewClient creates a new Solana client for SPL token (USDC) operations
 func NewClient(cfg *Config, logger *zap.Logger) (*Client, error) {
 	// Parse token mint address
 	tokenMint, err := solana.PublicKeyFromBase58(cfg.TokenAddress)
@@ -87,11 +89,17 @@ func NewClient(cfg *Config, logger *zap.Logger) (*Client, error) {
 		commitment = rpc.CommitmentFinalized
 	}
 
+	tokenDecimals := cfg.TokenDecimals
+	if tokenDecimals == 0 {
+		tokenDecimals = 6 // USDC default
+	}
+
 	client := &Client{
 		rpcClient:      rpcClient,
 		wsClient:       wsClient,
 		logger:         logger,
 		tokenMint:      tokenMint,
+		tokenDecimals:  tokenDecimals,
 		platformWallet: platformWallet,
 		privateKey:     privateKey,
 		commitment:     commitment,
@@ -126,7 +134,7 @@ func (c *Client) testConnection() error {
 	return nil
 }
 
-// GetTokenBalance gets the dGPU token balance for a given wallet address
+// GetTokenBalance gets the USDC balance for a given wallet address
 func (c *Client) GetTokenBalance(ctx context.Context, walletAddress string) (decimal.Decimal, error) {
 	pubKey, err := solana.PublicKeyFromBase58(walletAddress)
 	if err != nil {
@@ -149,7 +157,7 @@ func (c *Client) GetTokenBalance(ctx context.Context, walletAddress string) (dec
 		return decimal.Zero, fmt.Errorf("failed to get token balance: %w", err)
 	}
 
-	// Convert to decimal (assuming 9 decimals for dGPU token)
+	// Convert to decimal (assuming 9 decimals for USDC)
 	amount, err := decimal.NewFromString(balance.Value.Amount)
 	if err != nil {
 		return decimal.Zero, fmt.Errorf("failed to parse balance amount: %w", err)
@@ -162,7 +170,7 @@ func (c *Client) GetTokenBalance(ctx context.Context, walletAddress string) (dec
 	return amount.Div(divisor), nil
 }
 
-// TransferTokens transfers dGPU tokens between wallets
+// TransferTokens transfers USDC between wallets
 func (c *Client) TransferTokens(ctx context.Context, fromAddress, toAddress string, amount decimal.Decimal) (string, error) {
 	fromPubKey, err := solana.PublicKeyFromBase58(fromAddress)
 	if err != nil {
@@ -185,9 +193,10 @@ func (c *Client) TransferTokens(ctx context.Context, fromAddress, toAddress stri
 		return "", fmt.Errorf("failed to find to ATA: %w", err)
 	}
 
-	// Convert amount to token units (assuming 9 decimals)
-	decimals := decimal.NewFromInt(1000000000) // 10^9
-	tokenAmount := amount.Mul(decimals).BigInt().Uint64()
+	// Convert amount to token atomic units using the configured token decimals
+	// (USDC = 6). Using a hardcoded 9 here would over/under-pay by 1000x.
+	multiplier := decimal.NewFromInt(10).Pow(decimal.NewFromInt(int64(c.tokenDecimals)))
+	tokenAmount := amount.Mul(multiplier).BigInt().Uint64()
 
 	// Create transfer instruction
 	transferInstruction := token.NewTransferInstruction(

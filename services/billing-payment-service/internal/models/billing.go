@@ -33,9 +33,9 @@ type RentalSession struct {
 	VRAMPercentage    decimal.Decimal `json:"vram_percentage" db:"vram_percentage"`     // Percentage of VRAM allocated
 	
 	// Pricing information
-	HourlyRate        decimal.Decimal `json:"hourly_rate" db:"hourly_rate"`             // dGPU tokens per hour
-	VRAMRate          decimal.Decimal `json:"vram_rate" db:"vram_rate"`                 // dGPU tokens per GB per hour
-	PowerRate         decimal.Decimal `json:"power_rate" db:"power_rate"`               // dGPU tokens per watt per hour
+	HourlyRate        decimal.Decimal `json:"hourly_rate" db:"hourly_rate"`             // USDC per hour
+	VRAMRate          decimal.Decimal `json:"vram_rate" db:"vram_rate"`                 // USDC per GB per hour
+	PowerRate         decimal.Decimal `json:"power_rate" db:"power_rate"`               // USDC per watt per hour
 	PlatformFeeRate   decimal.Decimal `json:"platform_fee_rate" db:"platform_fee_rate"` // Platform fee percentage
 	
 	// Power consumption
@@ -48,7 +48,7 @@ type RentalSession struct {
 	LastBilledAt      time.Time       `json:"last_billed_at" db:"last_billed_at"`
 	
 	// Financial tracking
-	TotalCost         decimal.Decimal `json:"total_cost" db:"total_cost"`               // Total cost in dGPU tokens
+	TotalCost         decimal.Decimal `json:"total_cost" db:"total_cost"`               // Total cost in USDC
 	PlatformFee       decimal.Decimal `json:"platform_fee" db:"platform_fee"`          // Platform fee amount
 	ProviderEarnings  decimal.Decimal `json:"provider_earnings" db:"provider_earnings"` // Provider earnings
 	

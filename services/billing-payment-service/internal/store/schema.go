@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS rental_sessions (
     total_vram_mb BIGINT NOT NULL,
     vram_percentage DECIMAL(5,2) NOT NULL,
     
-    -- Pricing information (in dGPU tokens)
+    -- Pricing information (in USDC)
     hourly_rate DECIMAL(20,9) NOT NULL,
     vram_rate DECIMAL(20,9) NOT NULL,
     power_rate DECIMAL(20,9) NOT NULL,
@@ -143,7 +143,7 @@ CREATE TABLE IF NOT EXISTS billing_records (
     avg_vram_utilization DECIMAL(5,2),
     avg_power_draw DECIMAL(8,2),
     
-    -- Cost breakdown (in dGPU tokens)
+    -- Cost breakdown (in USDC)
     base_cost DECIMAL(20,9) NOT NULL,
     vram_cost DECIMAL(20,9) NOT NULL,
     power_cost DECIMAL(20,9) NOT NULL,
@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS provider_rates (
     provider_id UUID NOT NULL,
     gpu_model VARCHAR(255) NOT NULL,
     
-    -- Custom rates set by provider (in dGPU tokens)
+    -- Custom rates set by provider (in USDC)
     hourly_rate DECIMAL(20,9),
     vram_rate_per_gb DECIMAL(20,9),
     power_rate_per_watt DECIMAL(20,9),

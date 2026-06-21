@@ -55,7 +55,7 @@ func NewBillingService(
 
 // Wallet Management
 
-// CreateWallet creates a new dGPU token wallet for a user or provider
+// CreateWallet creates a new USDC wallet for a user or provider
 func (s *BillingService) CreateWallet(ctx context.Context, req *models.WalletCreateRequest) (*models.Wallet, error) {
 	s.logger.Info("Creating wallet",
 		zap.String("user_id", req.UserID),
@@ -460,7 +460,7 @@ func (s *BillingService) GetProviderEarnings(ctx context.Context, req *models.Pr
 	return s.store.GetProviderEarnings(ctx, req)
 }
 
-// ProcessDeposit processes a dGPU token deposit
+// ProcessDeposit processes a USDC deposit
 func (s *BillingService) ProcessDeposit(ctx context.Context, req *models.DepositRequest) (*models.Transaction, error) {
 	s.logger.Info("Processing deposit",
 		zap.String("wallet_id", req.WalletID.String()),
@@ -494,7 +494,7 @@ func (s *BillingService) ProcessDeposit(ctx context.Context, req *models.Deposit
 		ToWalletID:  &wallet.ID,
 		Type:        models.TransactionTypeDeposit,
 		Amount:      req.Amount,
-		Description: "dGPU token deposit",
+		Description: "USDC deposit",
 		Metadata: map[string]interface{}{
 			"solana_signature": req.SolanaSignature,
 		},
@@ -519,7 +519,7 @@ func (s *BillingService) ProcessDeposit(ctx context.Context, req *models.Deposit
 	return transaction, nil
 }
 
-// ProcessWithdrawal processes a dGPU token withdrawal
+// ProcessWithdrawal processes a USDC withdrawal
 func (s *BillingService) ProcessWithdrawal(ctx context.Context, req *models.WithdrawalRequest) (*models.Transaction, error) {
 	s.logger.Info("Processing withdrawal",
 		zap.String("wallet_id", req.WalletID.String()),
@@ -548,7 +548,7 @@ func (s *BillingService) ProcessWithdrawal(ctx context.Context, req *models.With
 		FromWalletID: &wallet.ID,
 		Type:         models.TransactionTypeWithdrawal,
 		Amount:       req.Amount,
-		Description:  fmt.Sprintf("dGPU token withdrawal to %s", req.ToAddress),
+		Description:  fmt.Sprintf("USDC withdrawal to %s", req.ToAddress),
 		Metadata: map[string]interface{}{
 			"to_address": req.ToAddress,
 		},
@@ -658,7 +658,7 @@ func (s *BillingService) GetPricingRates(ctx context.Context) (map[string]interf
 		"vram_rate_per_gb":     s.pricingEngine.GetVRAMRatePerGB(),
 		"power_multiplier":     s.pricingEngine.GetPowerMultiplier(),
 		"platform_fee_percent": s.pricingEngine.GetPlatformFeePercent(),
-		"currency":             "dGPU",
+		"currency":             "USDC",
 		"last_updated":         time.Now().UTC(),
 	}
 

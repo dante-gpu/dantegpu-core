@@ -173,7 +173,7 @@ func (h *BillingHandler) GetUserWallet(w http.ResponseWriter, r *http.Request) {
 	upstream.GetJSON(w, r.Context(), url, r.Header.Get("Authorization"), h.logger)
 }
 
-// GetUserBalance gets a user's dGPU token balance
+// GetUserBalance gets a user's USDC balance
 func (h *BillingHandler) GetUserBalance(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "userID")
 	if userID == "" {
@@ -239,7 +239,7 @@ func (h *BillingHandler) EstimateJobCost(w http.ResponseWriter, r *http.Request)
 
 	response := map[string]interface{}{
 		"estimated_cost": pricing,
-		"currency":       "dGPU",
+		"currency":       "USDC",
 		"breakdown": map[string]interface{}{
 			"base_cost":    "calculated from pricing service",
 			"vram_cost":    "calculated from pricing service",
