@@ -164,6 +164,10 @@ monitoring:
 
 # Billing Configuration
 billing:
+  # storage-service base URL where metering receipts are uploaded; the Covenant
+  # delivery_uri points at the stored receipt.
+  storage_url: "http://localhost:8083"
+
   # How often to calculate and charge for ongoing sessions
   billing_interval: "1m"
   

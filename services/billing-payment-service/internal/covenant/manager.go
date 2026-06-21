@@ -2,6 +2,7 @@ package covenant
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"strings"
 	"time"
@@ -152,6 +153,25 @@ func (m *Manager) SettleRentalJob(ctx context.Context, jobPDA, poster, taker str
 		return "", fmt.Errorf("covenant: invalid taker: %w", err)
 	}
 	return m.signer.Finalize(ctx, job, posterPub, takerPub)
+}
+
+// DisputeRentalJob opens a dispute on a rental's escrow with the given reason,
+// posting the platform's bond. The bonded 2-of-3 arbitrator resolves it using the
+// metering receipt as evidence (FavorPoster refunds, Split pays for actual usage).
+func (m *Manager) DisputeRentalJob(ctx context.Context, jobPDA, poster, reason string, amount decimal.Decimal) (string, error) {
+	if !m.Enabled() {
+		return "", fmt.Errorf("covenant: settlement not configured")
+	}
+	job, err := solana.PublicKeyFromBase58(jobPDA)
+	if err != nil {
+		return "", fmt.Errorf("covenant: invalid job pda: %w", err)
+	}
+	posterPub, err := solana.PublicKeyFromBase58(poster)
+	if err != nil {
+		return "", fmt.Errorf("covenant: invalid poster: %w", err)
+	}
+	reasonHash := sha256.Sum256([]byte(reason))
+	return m.signer.RaiseDispute(ctx, job, posterPub, reasonHash, toAtomic(amount))
 }
 
 // SettleRipeJobs is the provider-payout crank. It finalizes every delivered,

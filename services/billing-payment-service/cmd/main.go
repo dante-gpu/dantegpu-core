@@ -242,6 +242,7 @@ func setupHTTPServer(cfg *config.Config, billingService *service.BillingService,
 		r.Route("/billing", func(r chi.Router) {
 			r.Post("/start-session", handlers.StartRentalSession(billingService, logger))
 			r.Post("/end-session", handlers.EndRentalSession(billingService, logger))
+			r.Post("/dispute", handlers.DisputeSession(billingService, logger))
 			r.Post("/usage-update", handlers.ProcessUsageUpdate(billingService, logger))
 			r.Get("/current-usage/{sessionID}", handlers.GetCurrentUsage(billingService, logger))
 			r.Get("/history", handlers.GetBillingHistory(billingService, logger))

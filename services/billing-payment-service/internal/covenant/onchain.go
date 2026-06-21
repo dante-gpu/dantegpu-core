@@ -28,6 +28,7 @@ var (
 	discAcceptJob       = []byte{43, 201, 124, 1, 19, 189, 96, 10}
 	discSubmitWork      = []byte{158, 80, 101, 51, 114, 130, 101, 253}
 	discFinalizePayment = []byte{254, 254, 46, 40, 22, 126, 221, 128}
+	discRaiseDispute    = []byte{41, 243, 1, 51, 150, 95, 246, 73}
 )
 
 // PDA seed prefixes used by the Covenant program.
@@ -37,7 +38,24 @@ var (
 	seedEscrowToken = []byte("escrow_token")
 	seedReputation  = []byte("reputation")
 	seedClaim       = []byte("claim")
+	seedBond        = []byte("bond")
 )
+
+// Dispute bond defaults (from Covenant constants): 10% of escrow, minimum 1 USDC.
+const (
+	defaultBondBps      = 1000
+	defaultMinBondAtomic = 1_000_000
+)
+
+// MinBond returns the minimum dispute bond in atomic units for an escrow amount,
+// matching the program: max(amount * bps / 10_000, min_absolute).
+func MinBond(amountAtomic uint64) uint64 {
+	pct := amountAtomic * defaultBondBps / 10_000
+	if pct < defaultMinBondAtomic {
+		return defaultMinBondAtomic
+	}
+	return pct
+}
 
 // usdcDecimals is the SPL decimals for the settlement token (USDC = 6).
 const usdcDecimals = 6
@@ -140,6 +158,11 @@ func (s *Signer) reputationPDA(taker solana.PublicKey) (solana.PublicKey, error)
 
 func (s *Signer) claimPDA(job solana.PublicKey) (solana.PublicKey, error) {
 	pda, _, err := solana.FindProgramAddress([][]byte{seedClaim, job.Bytes()}, s.programID)
+	return pda, err
+}
+
+func (s *Signer) bondPDA(job solana.PublicKey) (solana.PublicKey, error) {
+	pda, _, err := solana.FindProgramAddress([][]byte{seedBond, job.Bytes()}, s.programID)
 	return pda, err
 }
 
@@ -323,6 +346,47 @@ func (s *Signer) Finalize(ctx context.Context, job, poster, taker solana.PublicK
 			meta(solana.SystemProgramID, false, false),
 		},
 		DataBytes: append([]byte{}, discFinalizePayment...),
+	}
+	return s.signAndSend(ctx, ix)
+}
+
+// RaiseDispute opens a dispute on a delivered job, posting a bond from the
+// platform (poster). reasonHash is the SHA-256 of the dispute reason; the metering
+// receipt is the evidence the bonded arbitrator weighs. amountAtomic is the escrow
+// amount in atomic units, used to size the minimum bond.
+func (s *Signer) RaiseDispute(ctx context.Context, job, poster solana.PublicKey, reasonHash [32]byte, amountAtomic uint64) (string, error) {
+	disputer := s.key.PublicKey() // poster == platform in Phase 1
+	config, err := s.configPDA()
+	if err != nil {
+		return "", err
+	}
+	bondToken, err := s.bondPDA(job)
+	if err != nil {
+		return "", err
+	}
+	posterATA, _, err := solana.FindAssociatedTokenAddress(disputer, s.usdcMint)
+	if err != nil {
+		return "", err
+	}
+
+	data := append([]byte{}, discRaiseDispute...)
+	data = append(data, reasonHash[:]...)
+	data = append(data, borshU64(MinBond(amountAtomic))...)
+
+	ix := &solana.GenericInstruction{
+		ProgID: s.programID,
+		AccountValues: solana.AccountMetaSlice{
+			meta(disputer, true, true),
+			meta(config, false, false),
+			meta(job, true, false),
+			meta(bondToken, true, false),
+			meta(posterATA, true, false),
+			meta(s.usdcMint, false, false),
+			meta(solana.TokenProgramID, false, false),
+			meta(solana.SystemProgramID, false, false),
+			meta(solana.SysVarRentPubkey, false, false),
+		},
+		DataBytes: data,
 	}
 	return s.signAndSend(ctx, ix)
 }

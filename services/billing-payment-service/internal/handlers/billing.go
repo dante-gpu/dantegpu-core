@@ -14,6 +14,27 @@ import (
 	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/service"
 )
 
+// DisputeSession handles opening a Covenant dispute on a rental session.
+func DisputeSession(billingService *service.BillingService, logger *zap.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			SessionID uuid.UUID `json:"session_id"`
+			Reason    string    `json:"reason"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeErrorResponse(w, http.StatusBadRequest, "Invalid request body", err)
+			return
+		}
+		sig, err := billingService.DisputeSession(r.Context(), req.SessionID, req.Reason)
+		if err != nil {
+			logger.Error("Failed to open dispute", zap.Error(err))
+			writeErrorResponse(w, http.StatusInternalServerError, "Failed to open dispute", err)
+			return
+		}
+		writeJSONResponse(w, http.StatusOK, map[string]string{"dispute_tx": sig})
+	}
+}
+
 // StartRentalSession handles rental session start requests
 func StartRentalSession(billingService *service.BillingService, logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

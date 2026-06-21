@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,6 +39,9 @@ type Config struct {
 	DailyWithdrawalLimit   decimal.Decimal `yaml:"daily_withdrawal_limit"`
 	MinimumPayoutAmount    decimal.Decimal `yaml:"minimum_payout_amount"`
 	PayoutFeePercent       decimal.Decimal `yaml:"payout_fee_percent"`
+	// StorageURL is the storage-service base URL where metering receipts are
+	// uploaded so the Covenant delivery_uri points at a retrievable receipt.
+	StorageURL string `yaml:"storage_url"`
 }
 
 // NewBillingService creates a new billing service
@@ -137,6 +142,58 @@ func (s *BillingService) GetWalletBalance(ctx context.Context, walletID uuid.UUI
 // Session Management
 
 // StartRentalSession starts a new GPU rental session
+// uploadReceipt stores the metering receipt in storage-service and returns a
+// retrievable URL for the Covenant delivery_uri. Best-effort: on any failure it
+// returns a stable session reference so settlement is never blocked.
+func (s *BillingService) uploadReceipt(ctx context.Context, sessionID, receipt string) string {
+	fallback := "dantegpu://session/" + sessionID
+	base := strings.TrimRight(s.config.StorageURL, "/")
+	if base == "" {
+		return fallback
+	}
+	url := base + "/objects/receipts/" + sessionID + ".json"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, strings.NewReader(receipt))
+	if err != nil {
+		return fallback
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		s.logger.Warn("Receipt upload failed", zap.Error(err))
+		return fallback
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		s.logger.Warn("Receipt upload returned non-2xx", zap.Int("status", resp.StatusCode))
+		return fallback
+	}
+	return url
+}
+
+// DisputeSession opens a Covenant dispute on a session's escrow, posting the
+// platform bond. The metering receipt already submitted is the evidence the
+// bonded 2-of-3 arbitrator weighs. Returns the dispute tx signature.
+func (s *BillingService) DisputeSession(ctx context.Context, sessionID uuid.UUID, reason string) (string, error) {
+	if !s.covenantMgr.Enabled() {
+		return "", fmt.Errorf("settlement not configured")
+	}
+	session, err := s.store.GetRentalSession(ctx, sessionID)
+	if err != nil {
+		return "", err
+	}
+	if session.Metadata == nil {
+		return "", fmt.Errorf("session has no covenant escrow")
+	}
+	jobPDA, _ := session.Metadata["covenant_job_pda"].(string)
+	poster, _ := session.Metadata["covenant_poster"].(string)
+	amountStr, _ := session.Metadata["covenant_escrow_amount"].(string)
+	if jobPDA == "" || poster == "" {
+		return "", fmt.Errorf("session has no covenant escrow")
+	}
+	amount, _ := decimal.NewFromString(amountStr)
+	return s.covenantMgr.DisputeRentalJob(ctx, jobPDA, poster, reason, amount)
+}
+
 func (s *BillingService) StartRentalSession(ctx context.Context, req *models.SessionStartRequest) (*models.SessionResponse, error) {
 	s.logger.Info("Starting rental session",
 		zap.String("user_id", req.UserID),
@@ -239,6 +296,7 @@ func (s *BillingService) StartRentalSession(ctx context.Context, req *models.Ses
 		session.Metadata["covenant_job_pda"] = job.JobPDA
 		session.Metadata["covenant_spec_hash"] = job.SpecHashHex
 		session.Metadata["covenant_poster"] = job.Poster
+		session.Metadata["covenant_escrow_amount"] = escrowAmount.String()
 		s.logger.Info("Covenant escrow opened",
 			zap.String("session_id", session.ID.String()),
 			zap.String("job_pda", job.JobPDA),
@@ -399,7 +457,7 @@ func (s *BillingService) EndRentalSession(ctx context.Context, req *models.Sessi
 			receipt := fmt.Sprintf(`{"session_id":"%s","gpu_model":"%s","total_cost":"%s","ended_at":"%s"}`,
 				session.ID.String(), session.GPUModel, session.TotalCost.String(), now.Format(time.RFC3339))
 			receiptHash := sha256.Sum256([]byte(receipt))
-			receiptURI := "dantegpu://session/" + session.ID.String()
+			receiptURI := s.uploadReceipt(ctx, session.ID.String(), receipt)
 			if sig, cerr := s.covenantMgr.CloseRentalJob(ctx, jobPDA, poster, receiptHash, receiptURI); cerr != nil {
 				s.logger.Error("Failed to submit Covenant work",
 					zap.String("session_id", session.ID.String()), zap.Error(cerr))
