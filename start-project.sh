@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # DanteGPU Project Launcher - Interactive Startup
-# {🙏 Don't worry about what the f😳ck I be doing, I'm Mock King AKINCI}
 
 set -e
 
@@ -311,7 +310,6 @@ while true; do
             echo -e "${CYAN}║                    DanteGPU Platform!                        ║${NC}"
             echo -e "${CYAN}║                                                              ║${NC}"
             echo -e "${CYAN}║  {🙏 Don't worry about what the f😳ck I be doing,          ║${NC}"
-            echo -e "${CYAN}║              I'm Mock King AKINCI}                           ║${NC}"
             echo -e "${CYAN}║                                                              ║${NC}"
             echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
             echo ""

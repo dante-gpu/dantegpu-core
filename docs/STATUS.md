@@ -39,8 +39,6 @@ real skeleton with a named gap. **Stub/Demo** = placeholder or development-only.
 | `gpu-rental-frontend` | Partial | Real React/Vite SPA: auth flow, catalog fetch, active rentals. Missing payment UI; API base URL is inconsistent (:8080 vs :8090) |
 | `provider-gui` | Working | See provider side above |
 | `provider-web-app` | Demo | Marketing landing page with hardcoded terminal logs; no platform features |
-| `mobile-app` | Stub | 1 of 6 screens; undefined imports; will not run as-is |
-| `user-dashboard` | Stub | API-client library with no UI and no `package.json`; referenced by `k8s/production/ingress.yaml` so kept for now, flagged for completion-or-removal |
 
 ## Infrastructure and data
 
@@ -51,7 +49,6 @@ real skeleton with a named gap. **Stub/Demo** = placeholder or development-only.
 | `infrastructure/`, `k8s/` | Config | Redis/MinIO/NATS/Consul/Prometheus config and K8s manifests; not all audited |
 | `test-mock-services` | Demo | In-memory mocks for local dev (hardcoded JWT); not production |
 | `ory-kratos-integration` | Partial | A working Kratos client, but not integrated with `auth-service`. Experimental alternative identity path; `auth-service` is canonical |
-| `src/` (Rust) | Stub | Single-file fallback daemon controller; orphaned |
 
 ## Removed in the cleanup
 
@@ -65,6 +62,12 @@ services. They remain in git history.
 | `provider-registry` | No entrypoint; unsafe SQL arg building | `provider-registry-service` |
 | `scheduler` | No entrypoint, handler-only | `scheduler-orchestrator-service` |
 | `stripe-paypal-integration` | PayPal 100% faked, wired to nothing; billing is Solana-only | (none) |
+| `mobile-app` | 1 of 6 screens, undefined imports, would not build | (none) |
+| `user-dashboard` | Empty API-client stub, no UI, no `package.json` | `gpu-rental-frontend` |
+| `src/` (Rust) | Orphaned single-file daemon controller | (none) |
 
-Eleven aspirational progress reports were moved from the repo root to
-[archive/](archive/).
+Documentation removed: 11 aspirational progress reports plus three
+self-congratulatory "report" docs (`SECURITY_AUDIT_REPORT`,
+`PERFORMANCE_OPTIMIZATION_REPORT`, `CODE_REVIEW_CHECKLIST`, all stamped "passed /
+optimized" while the repo carried 186 dependency vulnerabilities). All remain in
+git history.

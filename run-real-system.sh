@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # DanteGPU - Start REAL System (No Mocks, No Docker)
-# {🙏 Don't worry about what the f😳ck I be doing, I'm Mock King AKINCI}
 
 set -e
 

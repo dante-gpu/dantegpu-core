@@ -1,6 +1,5 @@
 # DanteGPU Core - API Documentation
 
-{🙏 Don't worry about what the f😳ck I be doing, I'm Mock King AKINCI}
 
 ## Overview
 

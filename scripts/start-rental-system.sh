@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # DanteGPU Rental System - Complete Startup Script
-# {🙏 Don't worry about what the f😳ck I be doing, I'm Mock King AKINCI}
 
 set -e
 

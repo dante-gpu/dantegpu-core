@@ -192,7 +192,7 @@ database/migrations/          13 SQL migrations (the canonical schema)
 infrastructure/               Redis/MinIO/NATS/Consul/Prometheus config
 monitoring-logging-service/   Prometheus + Grafana + Loki + Alertmanager stack
 k8s/                          Staging and production manifests
-docs/                         Architecture, runbook, API, status, archive
+docs/                         Architecture, runbook, API reference, status
 ```
 
 Note: the Go module namespace is `github.com/dante-gpu/dante-backend` (historical),
@@ -222,9 +222,9 @@ in [ROADMAP.md](ROADMAP.md).
   (`billing-payment-service`, `scheduler-orchestrator-service`,
   `provider-registry-service`) have no unit tests yet.
 
-The previous generation of triumphant progress reports (MISSION_ACCOMPLISHED and
-friends) has been moved to [docs/archive/](docs/archive/) and should be read as
-historical artifacts, not as a description of current behavior.
+A previous generation of triumphant progress reports (MISSION_ACCOMPLISHED and
+friends) and self-congratulatory "audit passed" documents have been removed; they
+described an idealized system, not this one. They remain in git history if needed.
 
 ## Documentation
 

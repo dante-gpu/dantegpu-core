@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # DanteGPU Rental System - Demo/Test Script (No Docker Required)
-# {🙏 Don't worry about what the f😳ck I be doing, I'm Mock King AKINCI}
 
 set -e
 
@@ -320,7 +319,6 @@ echo -e "  ${GREEN}✓${NC} Blockchain Integration"
 echo ""
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${CYAN}  {🙏 Don't worry about what the f😳ck I be doing,${NC}"
-echo -e "${CYAN}                I'm Mock King AKINCI}${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "${GREEN}✨ Demo completed! The rental system is fully functional.${NC}"

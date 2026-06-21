@@ -114,8 +114,8 @@ Make the claims the old README made actually true, one at a time.
 - Real AMD (ROCm), Intel, and Apple Silicon GPU detection in the provider daemon,
   replacing the hardcoded VRAM fallbacks
 - Payment and wallet UI in `gpu-rental-frontend` (deposit, balance, rental cost)
-- Decide the mobile app: finish the missing five screens or remove it
 - Standardize the API base URL across all clients (they currently disagree)
+- A native mobile client is out of scope for now (the earlier skeleton was removed)
 
 Pass: a provider on a non-NVIDIA card lists accurate specs; a renter can fund a
 wallet and watch a rental's cost from the browser.
