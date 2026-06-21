@@ -164,7 +164,7 @@ func main() {
 	}
 
 	// Initialize Task Handler - pass nil for NatsStatusPublisher initially
-	taskHandler := tasks.NewHandler(cfg, logger, nil, scriptExec, dockerExec)
+	taskHandler := tasks.NewHandler(cfg, logger, nil, scriptExec, dockerExec, billingClient)
 
 	// Initialize NATS Client (depends on TaskHandler for message handling)
 	natsClient, err := nats.NewClient(cfg, logger, taskHandler.HandleTask)

@@ -8,12 +8,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dante-gpu/dante-backend/provider-daemon/internal/billing"
 	"github.com/dante-gpu/dante-backend/provider-daemon/internal/config"
 	"github.com/dante-gpu/dante-backend/provider-daemon/internal/executor"
 	"github.com/dante-gpu/dante-backend/provider-daemon/internal/models"
 	cli_models "github.com/dante-gpu/dante-backend/provider-daemon/internal/models" // Alias for clarity
 
-	// "github.com/dante-gpu/dante-backend/provider-daemon/internal/reporting" // Not used yet
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -38,17 +39,19 @@ type Handler struct {
 	reporter       TaskResultReporter // Interface for reporting results
 	scriptExecutor executor.Executor
 	dockerExecutor executor.Executor
-	activeJobs     sync.Map // Stores *models.Task, keyed by JobID
+	billingClient  *billing.Client // Ends the rental session on any terminal outcome
+	activeJobs     sync.Map        // Stores *models.Task, keyed by JobID
 }
 
 // NewHandler creates a new task handler.
-func NewHandler(cfg *config.Config, logger *zap.Logger, reporter TaskResultReporter, scriptExecutor executor.Executor, dockerExecutor executor.Executor) *Handler {
+func NewHandler(cfg *config.Config, logger *zap.Logger, reporter TaskResultReporter, scriptExecutor executor.Executor, dockerExecutor executor.Executor, billingClient *billing.Client) *Handler {
 	return &Handler{
 		cfg:            cfg,
 		logger:         logger,
 		reporter:       reporter,
 		scriptExecutor: scriptExecutor,
 		dockerExecutor: dockerExecutor,
+		billingClient:  billingClient,
 		activeJobs:     sync.Map{}, // Initialize the map
 	}
 }
@@ -129,6 +132,10 @@ func (h *Handler) runTask(task *models.Task) {
 
 	_ = h.reportTaskStatus(task.JobID, finalStatus, finalMessage, &result.ExitCode, executionLog)
 
+	// End the billing session for any terminal outcome (script or docker,
+	// success or failure), so a failed or script job still closes its session.
+	h.endBillingSession(task, finalStatus)
+
 	h.logger.Info("Task execution finished",
 		zap.String("jobID", task.JobID),
 		zap.Int("exitCode", result.ExitCode),
@@ -164,6 +171,38 @@ func (h *Handler) reportTaskStatus(jobID string, status models.JobStatus, messag
 		h.logger.Error("Failed to publish task status update", zap.Error(err), zap.String("jobID", jobID))
 	}
 	return err
+}
+
+// endBillingSession ends the rental session that the scheduler created for this
+// task (threaded in via JobParams["session_id"]). It runs for every terminal
+// outcome, so script jobs and failures also close their session.
+func (h *Handler) endBillingSession(task *models.Task, finalStatus models.JobStatus) {
+	if h.billingClient == nil || task.JobParams == nil {
+		return
+	}
+	sessionIDStr, ok := task.JobParams["session_id"].(string)
+	if !ok || sessionIDStr == "" {
+		return
+	}
+	sessionID, err := uuid.Parse(sessionIDStr)
+	if err != nil {
+		h.logger.Warn("Invalid session_id in task; cannot end billing session",
+			zap.String("session_id", sessionIDStr), zap.Error(err))
+		return
+	}
+	reason := "job_finished"
+	if finalStatus == models.StatusFailed {
+		reason = "job_failed"
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := h.billingClient.StopBilling(ctx, sessionID, reason); err != nil {
+		h.logger.Error("Failed to end billing session",
+			zap.String("job_id", task.JobID), zap.String("session_id", sessionID.String()), zap.Error(err))
+	} else {
+		h.logger.Info("Billing session ended",
+			zap.String("job_id", task.JobID), zap.String("session_id", sessionID.String()), zap.String("reason", reason))
+	}
 }
 
 func (h *Handler) prepareWorkspace(jobID string) (string, error) {

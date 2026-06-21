@@ -503,21 +503,14 @@ func (de *DockerExecutor) Execute(ctx context.Context, task *models.Task, worksp
 		finalResult.Error = fmt.Errorf("container %s exited with code %d", resp.ID, statusCode)
 	}
 
-	// Stop billing: end the rental session upstream, keyed on the session_id the
-	// scheduler placed in the task.
+	// Billing session end is owned by the task handler, which covers the script
+	// and docker paths and job failures uniformly. Here we only record the
+	// container's billable duration; the per-minute metering monitor above stops
+	// when the execution context is cancelled.
 	if de.billingClient != nil {
-		actualDuration := time.Since(containerStartTime)
-		if sessionIDStr, ok := task.JobParams["session_id"].(string); ok && sessionIDStr != "" {
-			if sessionID, perr := uuid.Parse(sessionIDStr); perr == nil {
-				if errBill := de.billingClient.StopBilling(ctx, sessionID, "job_finished"); errBill != nil {
-					jobLogger.Error("Failed to end billing session", zap.String("job_id", task.JobID), zap.Error(errBill))
-				} else {
-					jobLogger.Info("Billing session ended", zap.String("job_id", task.JobID), zap.String("session_id", sessionID.String()), zap.Float64("duration_hours", actualDuration.Seconds()/3600))
-				}
-			}
-		} else {
-			jobLogger.Debug("No session_id in task; skipping session end.", zap.String("job_id", task.JobID))
-		}
+		jobLogger.Debug("Container billable duration",
+			zap.Float64("hours", time.Since(containerStartTime).Seconds()/3600),
+			zap.String("job_id", task.JobID))
 	}
 
 	jobLogger.Info("Docker execution finished",
