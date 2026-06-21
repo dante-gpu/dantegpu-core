@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
 
+	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/covenant"
 	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/pricing"
 	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/service"
 	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/solana"
@@ -17,6 +18,7 @@ type Config struct {
 	Server     ServerConfig     `yaml:"server"`
 	Database   DatabaseConfig   `yaml:"database"`
 	Solana     solana.Config    `yaml:"solana"`
+	Covenant   covenant.Config  `yaml:"covenant"`
 	Pricing    pricing.Config   `yaml:"pricing"`
 	NATS       NATSConfig       `yaml:"nats"`
 	Consul     ConsulConfig     `yaml:"consul"`

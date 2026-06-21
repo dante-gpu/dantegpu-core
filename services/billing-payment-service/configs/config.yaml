@@ -34,6 +34,13 @@ solana:
   timeout: "30s"
   max_retries: 3
 
+# Covenant settlement (on-chain escrow + dispute). See contracts/COVENANT_INTEGRATION.md
+covenant:
+  api_base_url: "https://www.covenant.run"
+  program_id: "5hstj5grBUL1BeSaPLYpgkD6n3ALasmbseRvKRFfCVNT"
+  usdc_mint: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+  timeout: "30s"
+
 # Pricing Configuration
 pricing:
   # Base hourly rates in USDC

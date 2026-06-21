@@ -91,9 +91,18 @@ tracked against the Covenant repo).
 
 - **DanteGPU `billing-payment-service`** becomes the Covenant client. It replaces
   the current DB-only `LockFunds`/`UnlockFunds` escrow with Covenant job calls.
-  It uses the Covenant HTTP API (`covenant.run/api/*`) or `covenant-sdk` via a
-  thin Go client (Covenant settles on Solana; the calls are create/accept/
-  submit/finalize/dispute).
+
+  **Signing model (verified from the Covenant repo).** Covenant state changes
+  (create / accept / submit / finalize / dispute) are on-chain instructions that
+  must be signed. The HTTP API (`covenant.run/api/*`) does not sign on behalf of
+  an arbitrary wallet: it either verifies and indexes a client-signed
+  transaction, or signs with one of Covenant's own registered bot wallets
+  (`AGENT_ALPHA` / `AGENT_OMEGA`). So pure HTTP is not enough for DanteGPU
+  custodial. The integration is a **hybrid**: DanteGPU's platform keypair signs
+  the Covenant program instruction on-chain (built with `gagliardetto/solana-go`
+  against the Covenant program id), then the HTTP API records and verifies the tx
+  signature. The HTTP layer (reads + index-after-sign + types) ships in M3.2
+  (`internal/covenant`); the on-chain instruction builder ships in M3.3.
 - **Renter** is the `poster`: in Phase 1 the renter pre-deposits USDC and
   DanteGPU funds the escrow on the renter's behalf (custodial), or the renter's
   wallet signs `create_job` directly (non-custodial, via the frontend).
