@@ -26,7 +26,7 @@ solana:
   rpc_url: "https://api.devnet.solana.com"
   ws_url: "wss://api.devnet.solana.com"
   # USDC SPL mint (devnet). Mainnet USDC: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
-  token_address: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+  token_address: "F7RYRqCy8uWYxjxrXVhU3iUCRwa9bKBUTkGKktpyYueQ"
   token_decimals: 6
   platform_wallet: "YOUR_PLATFORM_WALLET_ADDRESS"
   private_key_path: "/secrets/solana_private_key"
@@ -38,7 +38,7 @@ solana:
 covenant:
   api_base_url: "https://www.covenant.run"
   program_id: "5hstj5grBUL1BeSaPLYpgkD6n3ALasmbseRvKRFfCVNT"
-  usdc_mint: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+  usdc_mint: "F7RYRqCy8uWYxjxrXVhU3iUCRwa9bKBUTkGKktpyYueQ"
   timeout: "30s"
 
 # Pricing Configuration

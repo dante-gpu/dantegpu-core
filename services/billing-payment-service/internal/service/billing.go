@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 
+	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/covenant"
 	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/models"
 	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/pricing"
 	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/solana"
@@ -20,6 +22,7 @@ type BillingService struct {
 	store         *store.PostgresStore
 	solanaClient  *solana.Client
 	pricingEngine *pricing.Engine
+	covenantMgr   *covenant.Manager
 	logger        *zap.Logger
 	config        *Config
 }
@@ -41,6 +44,7 @@ func NewBillingService(
 	store *store.PostgresStore,
 	solanaClient *solana.Client,
 	pricingEngine *pricing.Engine,
+	covenantMgr *covenant.Manager,
 	config *Config,
 	logger *zap.Logger,
 ) *BillingService {
@@ -48,6 +52,7 @@ func NewBillingService(
 		store:         store,
 		solanaClient:  solanaClient,
 		pricingEngine: pricingEngine,
+		covenantMgr:   covenantMgr,
 		config:        config,
 		logger:        logger,
 	}
@@ -215,6 +220,32 @@ func (s *BillingService) StartRentalSession(ctx context.Context, req *models.Ses
 		UpdatedAt:        time.Now().UTC(),
 	}
 
+	// Open the on-chain Covenant escrow for this rental (Phase 1: fixed-duration
+	// prepaid; escrow = total hourly rate * booked hours). The job PDA is stored
+	// in the session metadata so it can be settled at end-of-session.
+	if s.covenantMgr.Enabled() {
+		durationHours := 1
+		if req.MaxDurationHours != nil && *req.MaxDurationHours > 0 {
+			durationHours = *req.MaxDurationHours
+		}
+		escrowAmount := pricing.TotalHourlyRate.Mul(decimal.NewFromInt(int64(durationHours)))
+		job, jerr := s.covenantMgr.OpenRentalJob(ctx, escrowAmount, req.GPUModel, session.ID.String(), time.Duration(durationHours)*time.Hour)
+		if jerr != nil {
+			return nil, fmt.Errorf("failed to open covenant escrow: %w", jerr)
+		}
+		if session.Metadata == nil {
+			session.Metadata = map[string]interface{}{}
+		}
+		session.Metadata["covenant_job_pda"] = job.JobPDA
+		session.Metadata["covenant_spec_hash"] = job.SpecHashHex
+		session.Metadata["covenant_poster"] = job.Poster
+		s.logger.Info("Covenant escrow opened",
+			zap.String("session_id", session.ID.String()),
+			zap.String("job_pda", job.JobPDA),
+			zap.String("tx", job.TxSignature),
+		)
+	}
+
 	// Save session to database
 	err = s.store.CreateRentalSession(ctx, session)
 	if err != nil {
@@ -357,6 +388,27 @@ func (s *BillingService) EndRentalSession(ctx context.Context, req *models.Sessi
 	err = s.store.UpdateRentalSession(ctx, session)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update session: %w", err)
+	}
+
+	// Submit the metering receipt to the Covenant escrow (submit_work). The hash
+	// is the proof of delivery; settlement (finalize) runs after the challenge
+	// window. A submit failure does not roll back the ended session.
+	if s.covenantMgr.Enabled() && session.Metadata != nil {
+		if jobPDA, ok := session.Metadata["covenant_job_pda"].(string); ok && jobPDA != "" {
+			poster, _ := session.Metadata["covenant_poster"].(string)
+			receipt := fmt.Sprintf(`{"session_id":"%s","gpu_model":"%s","total_cost":"%s","ended_at":"%s"}`,
+				session.ID.String(), session.GPUModel, session.TotalCost.String(), now.Format(time.RFC3339))
+			receiptHash := sha256.Sum256([]byte(receipt))
+			receiptURI := "dantegpu://session/" + session.ID.String()
+			if sig, cerr := s.covenantMgr.CloseRentalJob(ctx, jobPDA, poster, receiptHash, receiptURI); cerr != nil {
+				s.logger.Error("Failed to submit Covenant work",
+					zap.String("session_id", session.ID.String()), zap.Error(cerr))
+			} else {
+				session.Metadata["covenant_submit_tx"] = sig
+				s.logger.Info("Covenant work submitted",
+					zap.String("session_id", session.ID.String()), zap.String("tx", sig))
+			}
+		}
 	}
 
 	// Get user wallet to process final payment

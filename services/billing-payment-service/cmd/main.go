@@ -18,6 +18,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/config"
+	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/covenant"
 	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/handlers"
 	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/pricing"
 	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/service"
@@ -64,11 +65,19 @@ func main() {
 	// Setup pricing engine
 	pricingEngine := pricing.NewEngine(&cfg.Pricing, logger)
 
+	// Setup Covenant settlement manager (on-chain escrow + payout). Disabled (no-op)
+	// if covenant is not configured; 3600s = the protocol minimum challenge window.
+	covenantMgr, err := covenant.NewManagerFromConfig(cfg.Covenant, cfg.Solana.RPCURL, cfg.Solana.PrivateKeyPath, 3600)
+	if err != nil {
+		logger.Fatal("Failed to initialize Covenant settlement", zap.Error(err))
+	}
+
 	// Setup billing service
 	billingService := service.NewBillingService(
 		store,
 		solanaClient,
 		pricingEngine,
+		covenantMgr,
 		&cfg.Billing,
 		logger,
 	)

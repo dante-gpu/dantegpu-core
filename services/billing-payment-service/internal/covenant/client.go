@@ -84,17 +84,19 @@ type Job struct {
 
 // CreateJobRequest is the body for POST /api/jobs. The platform must have already
 // signed the on-chain create_job instruction; TxSignature is that transaction so
-// Covenant can verify and index it.
+// Covenant can verify and index it. Amount is a JSON number and Deadline/CreatedAt
+// are exact ISO strings (millisecond precision, Z) so Covenant re-derives the same
+// spec hash and job PDA.
 type CreateJobRequest struct {
-	PosterWallet           string          `json:"posterWallet"`
-	Amount                 decimal.Decimal `json:"amount"`
-	Category               string          `json:"category,omitempty"`
-	Title                  string          `json:"title,omitempty"`
-	Description            string          `json:"description,omitempty"`
-	Deadline               time.Time       `json:"deadline"`
-	ChallengePeriodSeconds int64           `json:"challengePeriodSeconds"`
-	TxSignature            string          `json:"txSignature,omitempty"`
-	CreatedAt              time.Time       `json:"createdAt"`
+	PosterWallet           string  `json:"posterWallet"`
+	Amount                 float64 `json:"amount"`
+	Category               string  `json:"category,omitempty"`
+	Title                  string  `json:"title,omitempty"`
+	Description            string  `json:"description,omitempty"`
+	Deadline               string  `json:"deadline"`
+	ChallengePeriodSeconds int64   `json:"challengePeriodSeconds"`
+	TxSignature            string  `json:"txSignature,omitempty"`
+	CreatedAt              string  `json:"createdAt"`
 }
 
 // SubmitWorkRequest is the body for POST /api/jobs/{id}/submit. WorkHash is the
