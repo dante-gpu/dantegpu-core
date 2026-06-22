@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { Coins, Wallet as WalletIcon, ArrowDownToLine, ExternalLink, Gift, Lock } from "lucide-react";
+import { Coins, Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine, ExternalLink, Gift, Lock } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useBalance } from "@/hooks/useBalance";
 import { useOnchainUsdc } from "@/hooks/useOnchainUsdc";
 import { useDeposit } from "@/hooks/useDeposit";
 import { useToast } from "@/components/ui/Toast";
+import { WithdrawModal } from "@/components/WithdrawModal";
 import { WalletButton } from "@/components/WalletButton";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -29,6 +30,7 @@ export default function Wallet() {
   const { data: onchain } = useOnchainUsdc();
   const { deposit, busy } = useDeposit();
   const [amount, setAmount] = useState("50");
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   const walletId = balance?.wallet_id ?? user?.id ?? "";
   const { data: txns } = useQuery<Transaction[]>({
@@ -79,13 +81,22 @@ export default function Wallet() {
             <div className="mt-2 flex items-end gap-3">
               <span className="nums text-4xl font-bold text-ink-50">{usdc(balance?.usdc_available)}</span>
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap items-center gap-2">
               <Badge tone="ember">
                 <Lock className="size-3" /> {usdc(balance?.usdc_reserved)} reserved
               </Badge>
               <Badge tone="positive">
                 <Gift className="size-3" /> {(balance?.dgpu_rewards ?? 0).toLocaleString()} dGPU
               </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                className="ml-auto"
+                disabled={(balance?.usdc_available ?? 0) <= 0}
+                onClick={() => setWithdrawOpen(true)}
+              >
+                <ArrowUpFromLine className="size-3.5" /> Withdraw
+              </Button>
             </div>
           </div>
         </Card>
@@ -202,6 +213,13 @@ export default function Wallet() {
           )}
         </CardBody>
       </Card>
+
+      <WithdrawModal
+        open={withdrawOpen}
+        onClose={() => setWithdrawOpen(false)}
+        walletId={walletId}
+        available={balance?.usdc_available ?? 0}
+      />
     </div>
   );
 }

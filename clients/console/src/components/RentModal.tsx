@@ -7,6 +7,7 @@ import { Button } from "./ui/Button";
 import { VendorMark } from "./VendorMark";
 import { useToast } from "./ui/Toast";
 import { useBalance } from "@/hooks/useBalance";
+import { useEstimate } from "@/hooks/useEstimate";
 import { api, ApiError } from "@/lib/api";
 import { rentalsStore } from "@/lib/rentalsStore";
 import { usdc, vram } from "@/lib/format";
@@ -32,7 +33,10 @@ export function RentModal({ gpu, onClose }: { gpu: GpuListing | null; onClose: (
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const estimate = useMemo(() => (gpu ? gpu.price_usdc_hour * hours : 0), [gpu, hours]);
+  const simpleEstimate = useMemo(() => (gpu ? gpu.price_usdc_hour * hours : 0), [gpu, hours]);
+  const { data: backendEstimate, isFetching: estimating } = useEstimate(gpu, hours);
+  // Prefer the pricing engine's figure; fall back to the local rate*hours math.
+  const estimate = backendEstimate ?? simpleEstimate;
   const available = balance?.usdc_available ?? 0;
   const insufficient = estimate > available;
 
@@ -143,7 +147,14 @@ export function RentModal({ gpu, onClose }: { gpu: GpuListing | null; onClose: (
 
         <div className="space-y-2 rounded-xl border border-ink-600 bg-ink-850 p-4">
           <Row label="Rate" value={`${usdc(gpu.price_usdc_hour)} / hr`} />
-          <Row label={`Max cost (${hours}h)`} value={usdc(estimate)} strong />
+          <Row
+            label={`Max cost (${hours}h)`}
+            value={estimating ? "estimating…" : usdc(estimate)}
+            strong
+          />
+          {backendEstimate != null && (
+            <p className="text-right text-[11px] text-flux-300">priced by the billing engine</p>
+          )}
           <div className="h-px bg-ink-700" />
           <Row
             label="Your balance"

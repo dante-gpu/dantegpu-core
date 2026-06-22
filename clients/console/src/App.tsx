@@ -9,6 +9,7 @@ import Marketplace from "@/pages/Marketplace";
 import RentalSession from "@/pages/RentalSession";
 import MyRentals from "@/pages/MyRentals";
 import Wallet from "@/pages/Wallet";
+import Activity from "@/pages/Activity";
 import ProviderOnboarding from "@/pages/ProviderOnboarding";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/rentals" element={<MyRentals />} />
         <Route path="/rentals/:jobId" element={<RentalSession />} />
         <Route path="/wallet" element={<Wallet />} />
+        <Route path="/activity" element={<Activity />} />
         <Route path="/provider" element={<ProviderOnboarding />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<NotFound />} />

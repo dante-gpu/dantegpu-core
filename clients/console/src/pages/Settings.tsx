@@ -1,16 +1,19 @@
 import { useWallet } from "@solana/wallet-adapter-react";
-import { User, Mail, Wallet as WalletIcon, Globe, LogOut } from "lucide-react";
+import { User, Mail, Wallet as WalletIcon, Globe, LogOut, Sun, Moon } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
+import { useTheme } from "@/providers/ThemeProvider";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { WalletButton } from "@/components/WalletButton";
 import { solanaCluster } from "@/lib/solana";
 import { shortAddress } from "@/lib/format";
+import { cn } from "@/lib/cn";
 
 export default function Settings() {
   const { user, logout } = useAuth();
   const { publicKey } = useWallet();
+  const { theme, setTheme } = useTheme();
   const cluster = solanaCluster();
 
   return (
@@ -28,6 +31,30 @@ export default function Settings() {
           {user?.role && (
             <Field icon={<User className="size-4" />} label="Role" value={user.role} />
           )}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title="Appearance" description="Choose how the console looks." />
+        <CardBody className="pt-1">
+          <div className="inline-flex rounded-lg border border-ink-600 bg-ink-850 p-1">
+            {([
+              { key: "dark" as const, label: "Dark", icon: Moon },
+              { key: "light" as const, label: "Light", icon: Sun },
+            ]).map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setTheme(key)}
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
+                  theme === key ? "bg-ember-500 text-white" : "text-ink-300 hover:text-ink-50",
+                )}
+              >
+                <Icon className="size-4" />
+                {label}
+              </button>
+            ))}
+          </div>
         </CardBody>
       </Card>
 

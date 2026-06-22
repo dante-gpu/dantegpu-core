@@ -299,3 +299,50 @@ func (h *BillingHandler) GetTransactionHistory(w http.ResponseWriter, r *http.Re
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
+
+// GetProviderEarnings proxies to the billing service for a provider's accrued
+// earnings, pending payout and lifetime totals (provider dashboard).
+func (h *BillingHandler) GetProviderEarnings(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "providerID")
+	if providerID == "" {
+		http.Error(w, "Provider ID is required", http.StatusBadRequest)
+		return
+	}
+	url := upstream.BuildURL(h.cfg.BillingServiceURL, "/api/v1/provider/"+providerID+"/earnings")
+	upstream.GetJSON(w, r.Context(), url, r.Header.Get("Authorization"), h.logger)
+}
+
+// GetProviderRates proxies to the billing service for a provider's configured
+// hourly rates.
+func (h *BillingHandler) GetProviderRates(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "providerID")
+	if providerID == "" {
+		http.Error(w, "Provider ID is required", http.StatusBadRequest)
+		return
+	}
+	url := upstream.BuildURL(h.cfg.BillingServiceURL, "/api/v1/provider/"+providerID+"/rates")
+	upstream.GetJSON(w, r.Context(), url, r.Header.Get("Authorization"), h.logger)
+}
+
+// SetProviderRates forwards a provider's rate update to the billing service.
+func (h *BillingHandler) SetProviderRates(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "providerID")
+	if providerID == "" {
+		http.Error(w, "Provider ID is required", http.StatusBadRequest)
+		return
+	}
+	url := upstream.BuildURL(h.cfg.BillingServiceURL, "/api/v1/provider/"+providerID+"/rates")
+	upstream.Forward(w, r, url, h.logger)
+}
+
+// RequestProviderPayout forwards a provider payout request to the billing
+// service, which settles accrued USDC on-chain.
+func (h *BillingHandler) RequestProviderPayout(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "providerID")
+	if providerID == "" {
+		http.Error(w, "Provider ID is required", http.StatusBadRequest)
+		return
+	}
+	url := upstream.BuildURL(h.cfg.BillingServiceURL, "/api/v1/provider/"+providerID+"/payout")
+	upstream.Forward(w, r, url, h.logger)
+}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Server, Cpu, Coins, ShieldCheck, Copy, Check, Terminal, Download } from "lucide-react";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { ProviderConsole } from "@/components/ProviderConsole";
 import { cn } from "@/lib/cn";
 
 const INSTALL_CMD = "curl -fsSL https://get.dantegpu.com/daemon.sh | sh";
@@ -40,6 +41,9 @@ export default function ProviderOnboarding() {
           your hardware is rented, plus dGPU incentive rewards on top.
         </p>
       </div>
+
+      {/* Provider earnings console (for existing providers) */}
+      <ProviderConsole />
 
       {/* Value props */}
       <div className="grid gap-4 sm:grid-cols-3">

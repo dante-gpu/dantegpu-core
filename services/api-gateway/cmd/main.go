@@ -180,6 +180,12 @@ func main() {
 				r.Post("/pricing/calculate", billingHandler.CalculatePricing)
 				r.Post("/pricing/estimate", billingHandler.EstimateJobCost)
 				r.Get("/marketplace", billingHandler.GetGPUMarketplace)
+
+				// Provider earnings, rates and payout (provider dashboard)
+				r.Get("/provider/{providerID}/earnings", billingHandler.GetProviderEarnings)
+				r.Get("/provider/{providerID}/rates", billingHandler.GetProviderRates)
+				r.Put("/provider/{providerID}/rates", billingHandler.SetProviderRates)
+				r.Post("/provider/{providerID}/payout", billingHandler.RequestProviderPayout)
 			})
 		})
 

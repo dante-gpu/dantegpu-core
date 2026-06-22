@@ -62,6 +62,34 @@
   --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 12px 36px -18px rgb(0 0 0 / 0.8);
 }
 
+/*
+  Light theme. Tokens above are plain @theme variables (referenced via var() by
+  every utility), so we re-theme the whole app by overriding the ink ramp under
+  :root.light. The scale keeps its semantic direction (high numbers = surfaces,
+  low numbers = text) but flips dark->light, so bg-ink-900 / text-ink-50 read
+  correctly in both modes. Ember/flux brand hues shift slightly darker for AA
+  contrast on light surfaces.
+*/
+:root.light {
+  --color-ink-950: #ffffff;
+  --color-ink-900: #fafafb;
+  --color-ink-850: #f4f4f6;
+  --color-ink-800: #eeeef1;
+  --color-ink-700: #e4e4ea;
+  --color-ink-600: #d6d6de;
+  --color-ink-500: #b9b9c4;
+  --color-ink-400: #9595a3;
+  --color-ink-300: #6f6f7d;
+  --color-ink-200: #50505d;
+  --color-ink-100: #2c2c36;
+  --color-ink-50: #14141a;
+
+  --color-ember-300: #d8410c;
+  --color-flux-300: #0e7490;
+
+  --shadow-card: 0 1px 0 0 rgb(0 0 0 / 0.02) inset, 0 12px 30px -20px rgb(0 0 0 / 0.25);
+}
+
 @layer base {
   * {
     border-color: var(--color-ink-600);

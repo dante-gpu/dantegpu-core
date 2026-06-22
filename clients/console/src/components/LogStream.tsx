@@ -18,7 +18,17 @@ const levelColor: Record<LogLine["level"], string> = {
 // A terminal-style, auto-scrolling log viewer for a rental session. Lines are
 // fed from the parent (which polls the job/session); this component only owns
 // rendering and stick-to-bottom behavior.
-export function LogStream({ lines, title = "Session logs" }: { lines: LogLine[]; title?: string }) {
+export function LogStream({
+  lines,
+  title = "Session logs",
+  heightClass = "h-72",
+  action,
+}: {
+  lines: LogLine[];
+  title?: string;
+  heightClass?: string;
+  action?: React.ReactNode;
+}) {
   const endRef = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
 
@@ -31,14 +41,17 @@ export function LogStream({ lines, title = "Session logs" }: { lines: LogLine[];
       <div className="flex items-center gap-2 border-b border-ink-700 px-4 py-2.5">
         <Terminal className="size-4 text-ink-400" />
         <span className="text-sm font-medium text-ink-100">{title}</span>
-        <span className="ml-auto flex gap-1.5">
-          <span className="size-2.5 rounded-full bg-critical/60" />
-          <span className="size-2.5 rounded-full bg-caution/60" />
-          <span className="size-2.5 rounded-full bg-positive/60" />
+        <span className="ml-auto flex items-center gap-3">
+          {action}
+          <span className="flex gap-1.5">
+            <span className="size-2.5 rounded-full bg-critical/60" />
+            <span className="size-2.5 rounded-full bg-caution/60" />
+            <span className="size-2.5 rounded-full bg-positive/60" />
+          </span>
         </span>
       </div>
       <div
-        className="h-72 overflow-y-auto bg-ink-950/60 p-4 font-mono text-xs leading-relaxed"
+        className={cn("overflow-y-auto bg-ink-950/60 p-4 font-mono text-xs leading-relaxed", heightClass)}
         onScroll={(e) => {
           const el = e.currentTarget;
           atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;

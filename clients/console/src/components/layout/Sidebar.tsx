@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Cpu, Server, Wallet, Settings, HardDrive } from "lucide-react";
+import { LayoutDashboard, Cpu, Server, Wallet, Settings, HardDrive, Activity } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/cn";
 
@@ -8,6 +8,7 @@ const nav = [
   { to: "/marketplace", label: "Marketplace", icon: Cpu, end: false },
   { to: "/rentals", label: "My Rentals", icon: HardDrive, end: false },
   { to: "/wallet", label: "Wallet", icon: Wallet, end: false },
+  { to: "/activity", label: "Activity", icon: Activity, end: false },
   { to: "/provider", label: "Become a Provider", icon: Server, end: false },
   { to: "/settings", label: "Settings", icon: Settings, end: false },
 ];

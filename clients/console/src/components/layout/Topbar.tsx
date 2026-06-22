@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, LogOut, Coins } from "lucide-react";
 import { WalletButton } from "@/components/WalletButton";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/providers/AuthProvider";
 import { useBalance } from "@/hooks/useBalance";
 import { usdc } from "@/lib/format";
@@ -26,6 +27,7 @@ export function Topbar() {
       </div>
 
       <div className="flex items-center gap-3">
+        <ThemeToggle className="hidden sm:grid" />
         <WalletButton size="sm" />
 
         <div className="relative">
