@@ -12,7 +12,7 @@ const steps = [
   {
     icon: Download,
     title: "Install the provider daemon",
-    body: "One command installs the daemon on Linux, macOS or Windows. It auto-detects NVIDIA, AMD, Apple and Intel GPUs.",
+    body: "One command installs the daemon on Linux, macOS or Windows. It auto-detects NVIDIA, AMD, Apple and Intel GPUs. Verify your card is seen with dante-daemon --get-gpus-json before going live.",
     code: INSTALL_CMD,
   },
   {

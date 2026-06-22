@@ -27,8 +27,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/models"
 	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/pricing"
+	"github.com/dante-gpu/dante-backend/billing-payment-service/internal/store"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 )
@@ -47,6 +50,8 @@ func main() {
 	daemonPath := flag.String("daemon", "/tmp/dante-daemon", "path to a built provider-daemon binary")
 	hours := flag.Float64("hours", 2, "rental duration in hours to price")
 	powerW := flag.Uint("power", 55, "estimated sustained GPU power in watts")
+	dsn := flag.String("dsn", "", "optional Postgres DSN; if set, persists a real metered session via the live store and reads it back")
+	meterSeconds := flag.Int("meter-seconds", 3, "real metering window (seconds) when --dsn is set")
 	flag.Parse()
 
 	ctx := context.Background()
@@ -85,10 +90,28 @@ func main() {
 	providerID := uuid.New()
 	renterID := uuid.New()
 
+	// 4) Optionally persist a REAL metered session through the live Postgres
+	// store (schema, wallet, session, usage record, settlement, read-back).
+	var dbProof *models.RentalSession
+	if *dsn != "" {
+		dbProof, err = persistSession(ctx, *dsn, gpu, priceReq, price, sessionID, providerID, renterID, *meterSeconds)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "db persistence failed: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	finished := time.Now().UTC()
 
 	// Build the receipt and a tamper-evident hash over its canonical form.
 	receipt := buildReceipt(gpu, priceReq, price, jobID, sessionID, providerID, renterID, started, finished)
+	if dbProof != nil {
+		receipt["db_session_id"] = dbProof.ID.String()
+		receipt["db_status"] = string(dbProof.Status)
+		receipt["db_total_cost_usdc"] = dbProof.TotalCost.StringFixed(6)
+		receipt["db_metered_seconds"] = fmt.Sprintf("%d", *meterSeconds)
+		receipt["db_read_back"] = "true"
+	}
 	hash := sha256.Sum256([]byte(canonical(receipt)))
 	receipt["receipt_sha256"] = fmt.Sprintf("%x", hash)
 
@@ -98,6 +121,99 @@ func main() {
 	if blob, err := json.MarshalIndent(receipt, "", "  "); err == nil {
 		_ = os.WriteFile("/tmp/dante-rental-receipt.json", blob, 0o644)
 	}
+}
+
+// persistSession drives a REAL metered rental through the live Postgres store:
+// it initializes the schema, creates a renter wallet, opens a rental session,
+// records a usage sample over a real metering window, settles the session, and
+// reads it back from the database. The returned session is the row as stored in
+// Postgres, proving the persistence layer (not just the math) actually works.
+func persistSession(ctx context.Context, dsn string, gpu daemonGPU, req *pricing.PricingRequest,
+	price *pricing.PricingResponse, sessionID, providerID, renterID uuid.UUID, meterSeconds int) (*models.RentalSession, error) {
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		return nil, fmt.Errorf("connecting to postgres: %w", err)
+	}
+	defer pool.Close()
+
+	st := store.NewPostgresStore(pool, zap.NewNop())
+	if err := st.Initialize(ctx); err != nil {
+		return nil, fmt.Errorf("initializing schema: %w", err)
+	}
+
+	// Renter wallet.
+	if _, err := st.CreateWallet(ctx, &models.WalletCreateRequest{
+		UserID:        renterID.String(),
+		WalletType:    models.WalletTypeUser,
+		SolanaAddress: "Dpr00fRenterWa11et" + renterID.String()[:8],
+	}); err != nil {
+		return nil, fmt.Errorf("creating wallet: %w", err)
+	}
+
+	now := time.Now().UTC()
+	jobIDStr := "rental-proof-" + sessionID.String()[:8]
+	session := &models.RentalSession{
+		ID:              sessionID,
+		UserID:          renterID.String(),
+		ProviderID:      providerID,
+		JobID:           &jobIDStr,
+		Status:          models.SessionStatusActive,
+		GPUModel:        gpu.Model,
+		AllocatedVRAM:   gpu.VRAMTotalMB,
+		TotalVRAM:       gpu.VRAMTotalMB,
+		VRAMPercentage:  decimal.NewFromInt(100),
+		HourlyRate:      price.BaseHourlyRate,
+		VRAMRate:        decimal.NewFromFloat(0.02),
+		PowerRate:       decimal.NewFromFloat(0.001),
+		PlatformFeeRate: decimal.NewFromFloat(5.0),
+		EstimatedPowerW: req.EstimatedPowerW,
+		StartedAt:       now,
+		LastBilledAt:    now,
+		TotalCost:       decimal.Zero,
+		PlatformFee:     decimal.Zero,
+		Metadata:        map[string]interface{}{"source": "rental-proof", "detection": "provider-daemon"},
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	if err := st.CreateRentalSession(ctx, session); err != nil {
+		return nil, fmt.Errorf("creating session: %w", err)
+	}
+
+	// Real metering window: sleep, then record one usage sample.
+	time.Sleep(time.Duration(meterSeconds) * time.Second)
+	if err := st.CreateUsageRecord(ctx, &models.UsageRecord{
+		ID:              uuid.New(),
+		SessionID:       sessionID,
+		RecordedAt:      time.Now().UTC(),
+		GPUUtilization:  0, // host GPU was idle during the proof window
+		VRAMUtilization: 0,
+		PowerDraw:       uint32(req.EstimatedPowerW),
+		Temperature:     0,
+		PeriodMinutes:   1, // minimum billable period (schema requires > 0)
+		PeriodCost:      price.TotalHourlyRate.Div(decimal.NewFromInt(60)),
+		CreatedAt:       time.Now().UTC(),
+	}); err != nil {
+		return nil, fmt.Errorf("creating usage record: %w", err)
+	}
+
+	// Settle: close the session with the priced totals.
+	ended := time.Now().UTC()
+	session.EndedAt = &ended
+	session.Status = models.SessionStatusCompleted
+	session.TotalCost = price.TotalCost
+	session.PlatformFee = price.PlatformFee
+	session.ProviderEarnings = price.ProviderEarnings
+	session.UpdatedAt = ended
+	if err := st.UpdateRentalSession(ctx, session); err != nil {
+		return nil, fmt.Errorf("settling session: %w", err)
+	}
+
+	// Read it back from Postgres to prove it persisted.
+	stored, err := st.GetRentalSession(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("reading session back: %w", err)
+	}
+	return stored, nil
 }
 
 func detectGPUs(ctx context.Context, daemonPath string) ([]daemonGPU, error) {
@@ -217,6 +333,13 @@ func printReceipt(r map[string]any, gpu daemonGPU, req *pricing.PricingRequest, 
 	row("TOTAL CHARGED", p.TotalCost.StringFixed(4)+" USDC")
 	row("Provider earnings", p.ProviderEarnings.StringFixed(4)+" USDC")
 	row("Settlement", "Solana / Covenant Phase 1")
+	if _, ok := r["db_read_back"]; ok {
+		fmt.Println("├" + line + "┤")
+		row("DB session (Postgres)", r["db_session_id"].(string))
+		row("DB status (read back)", r["db_status"].(string))
+		row("DB total cost", r["db_total_cost_usdc"].(string)+" USDC")
+		row("Metered window", r["db_metered_seconds"].(string)+" s (live store)")
+	}
 	fmt.Println("├" + line + "┤")
 	row("Started", r["started_at"].(string))
 	row("Finished", r["finished_at"].(string))

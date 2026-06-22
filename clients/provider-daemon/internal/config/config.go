@@ -99,8 +99,12 @@ func LoadConfig(path string, logger *zap.Logger) (*Config, error) {
 			ConnectTimeout:             5 * time.Second,
 			ReconnectWait:              5 * time.Second,
 			MaxReconnects:              -1, // Infinite
-			SubjectPrefix:              "dante.tasks",
-			TaskDispatchSubjectPattern: "dante.tasks.dispatch.>",
+			SubjectPrefix:              "tasks.dispatch",
+			// Must contain a single %s for the instance id (fmt.Sprintf) and live
+			// under the TASKS JetStream stream's subjects (tasks.>). The previous
+			// default "dante.tasks.dispatch.>" had no %s (so Sprintf garbled it)
+			// and the wrong prefix (no stream matched), breaking task dispatch.
+			TaskDispatchSubjectPattern: "tasks.dispatch.%s.*",
 			JobStatusUpdateSubjectPrefix: "dante.provider.status",
 			StreamNamePrefix:           "DANTE_TASKS_",
 			ConsumerNamePrefix:         "provider_daemon_",

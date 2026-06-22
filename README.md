@@ -35,6 +35,12 @@ The honest one-line summary: **you can list a GPU, find it, rent it in USDC, run
 job, and have the session settle on-chain via Covenant; the remaining open work is
 true metered (partial) refund and mainnet hardening.**
 
+Want proof rather than claims? `./scripts/rental-proof.sh` runs the whole loop
+end to end with real code on a throwaway Postgres + NATS (no Docker/NVIDIA
+needed): it detects this host's GPU, prices the rental, persists a metered
+session to Postgres and reads it back, then dispatches a task over NATS that the
+daemon actually executes. See [docs/PROOF.md](docs/PROOF.md) for a real run.
+
 ## Architecture
 
 ```mermaid
