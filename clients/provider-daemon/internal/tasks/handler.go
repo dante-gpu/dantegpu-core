@@ -31,6 +31,12 @@ type TaskResultReporter interface {
 	PublishStatus(statusUpdate *models.TaskStatusUpdate) error
 }
 
+// HealthChecker reports whether the provider's GPUs are currently healthy. The
+// handler rejects new tasks while unhealthy.
+type HealthChecker interface {
+	Healthy() bool
+}
+
 // Handler processes incoming tasks and manages their execution.
 // It now includes an activeJobs map for tracking.
 type Handler struct {
@@ -40,6 +46,7 @@ type Handler struct {
 	scriptExecutor executor.Executor
 	dockerExecutor executor.Executor
 	billingClient  *billing.Client // Ends the rental session on any terminal outcome
+	healthChecker  HealthChecker   // Gates task acceptance on GPU health
 	activeJobs     sync.Map        // Stores *models.Task, keyed by JobID
 }
 
@@ -61,9 +68,22 @@ func (h *Handler) SetReporter(reporter TaskResultReporter) {
 	h.reporter = reporter
 }
 
+// SetHealthChecker wires the GPU health monitor so the handler can reject tasks
+// while the provider is offline.
+func (h *Handler) SetHealthChecker(hc HealthChecker) {
+	h.healthChecker = hc
+}
+
 // HandleTask is called when a new task is received.
 func (h *Handler) HandleTask(task *models.Task) error {
 	h.logger.Info("Received task", zap.String("jobID", task.JobID), zap.String("jobName", task.JobName), zap.String("type", string(task.ExecutionType)))
+
+	// Reject the task if the provider's GPUs are unhealthy (offline).
+	if h.healthChecker != nil && !h.healthChecker.Healthy() {
+		h.logger.Warn("Rejecting task: provider GPU health is offline", zap.String("jobID", task.JobID))
+		_ = h.reportTaskStatus(task.JobID, models.StatusFailed, "Provider GPU is offline; task rejected", nil, "")
+		return fmt.Errorf("provider offline, task %s rejected", task.JobID)
+	}
 
 	// Store the task as active
 	h.activeJobs.Store(task.JobID, task)

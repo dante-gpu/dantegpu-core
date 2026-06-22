@@ -166,6 +166,13 @@ func main() {
 	// Initialize Task Handler - pass nil for NatsStatusPublisher initially
 	taskHandler := tasks.NewHandler(cfg, logger, nil, scriptExec, dockerExec, billingClient)
 
+	// Start the GPU health monitor and gate task acceptance on it: a provider
+	// whose GPUs stop responding is marked offline and rejects new tasks until
+	// it recovers.
+	healthMonitor := gpu.NewHealthMonitor(gpuDetector, logger, 30*time.Second, 3)
+	taskHandler.SetHealthChecker(healthMonitor)
+	go healthMonitor.Start(context.Background())
+
 	// Initialize NATS Client (depends on TaskHandler for message handling)
 	natsClient, err := nats.NewClient(cfg, logger, taskHandler.HandleTask)
 	if err != nil {
