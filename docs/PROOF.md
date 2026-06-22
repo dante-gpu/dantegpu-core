@@ -79,10 +79,42 @@ Building the proof flushed out two genuine defects:
    stream matched. Fixed to `tasks.dispatch.%s.*`, which the `TASKS` JetStream
    stream captures; the daemon now subscribes and executes dispatched tasks.
 
+## Running a real model on the rented GPU
+
+`scripts/gpu-model-proof.sh` goes one step further: it dispatches an
+**AI-inference task** through the same NATS flow, and the daemon runs a real
+quantized LLM on the host's GPU. The daemon-captured stdout is the model's
+answer; the device line proves it ran on the accelerator.
+
+```bash
+./scripts/gpu-model-proof.sh
+```
+
+A real run on the Apple M4 Max GPU (Meta Llama 3.2 1B, 4-bit, via MLX/Metal):
+
+```
+== the rented GPU's answer (daemon-captured stdout) ==
+   device          Device(gpu, 0)
+   model           mlx-community/Llama-3.2-1B-Instruct-4bit
+   prompt          In one sentence, what is a GPU and why is it good for AI?
+   tokens/sec      235.71  (58 tokens, 0.81 GB GPU)
+
+   >> A Graphics Processing Unit (GPU) is a specialized electronic circuit
+      designed to quickly manipulate and alter spatial data ... making it
+      particularly well-suited for ... Artificial Intelligence (AI).
+```
+
+So the full chain is real: detect the GPU, rent it, dispatch a job over NATS,
+the daemon executes it, and a real Llama model generates text on the Metal GPU,
+with the output returned through the daemon. The inference payload is
+`scripts/gpu_infer.py` (MLX); swap `--model` for any `mlx-community` repo, or
+point it at a CUDA box with a PyTorch payload for NVIDIA.
+
 ## What this is NOT
 
-This proves the rental **transaction and dispatch mechanics** (detect, price,
-meter, persist, dispatch, execute, report). It is **not** a distributed
-multi-node GPU inference run — that needs real accelerators and a cluster. The
-script's task is a `/bin/sh` job (`echo`), which is why it runs without Docker or
-an NVIDIA GPU. Running an actual model on a rented GPU is the next milestone.
+This proves the rental flow end to end **including real model execution on the
+rented GPU**. What it does NOT yet show is a *distributed, multi-node* inference
+run (one model sharded across many rented GPUs over the network, like
+leyten/shard) — that needs several real accelerators and the cross-node
+execution layer, which is a later milestone. Here a single host's GPU runs the
+whole (small) model.

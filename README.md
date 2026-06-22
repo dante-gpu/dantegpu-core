@@ -39,7 +39,10 @@ Want proof rather than claims? `./scripts/rental-proof.sh` runs the whole loop
 end to end with real code on a throwaway Postgres + NATS (no Docker/NVIDIA
 needed): it detects this host's GPU, prices the rental, persists a metered
 session to Postgres and reads it back, then dispatches a task over NATS that the
-daemon actually executes. See [docs/PROOF.md](docs/PROOF.md) for a real run.
+daemon actually executes. And `./scripts/gpu-model-proof.sh` goes further —
+dispatching an AI-inference job whose payload runs a real quantized Llama model
+on the host's GPU (Apple Metal: ~235 tok/s on an M4 Max), with the model's
+answer returned through the daemon. See [docs/PROOF.md](docs/PROOF.md).
 
 ## Architecture
 
