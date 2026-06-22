@@ -1,0 +1,197 @@
+@import "tailwindcss";
+
+/*
+  DanteGPU design language
+  ------------------------
+  A premium, dark "inferno" console. Near-black ink base, ember-orange primary
+  that nods to Dante's fire, electric cyan as the "compute" secondary, and a
+  restrained neutral ramp. Funnel Display carries headings, Inter the body, and
+  JetBrains Mono the numerics / logs. Everything is token-driven through the
+  Tailwind v4 @theme block so screens stay consistent.
+*/
+
+@theme {
+  /* Brand ramp - ember / inferno */
+  --color-ember-50: #fff4ed;
+  --color-ember-100: #ffe5d4;
+  --color-ember-200: #ffc7a8;
+  --color-ember-300: #ffa170;
+  --color-ember-400: #ff7438;
+  --color-ember-500: #ff5722;
+  --color-ember-600: #f03d0c;
+  --color-ember-700: #c72d0b;
+  --color-ember-800: #9e2711;
+  --color-ember-900: #7f2412;
+
+  /* Secondary ramp - compute cyan */
+  --color-flux-300: #67e8f9;
+  --color-flux-400: #22d3ee;
+  --color-flux-500: #06b6d4;
+  --color-flux-600: #0891b2;
+
+  /* Neutral ink ramp */
+  --color-ink-950: #08080a;
+  --color-ink-900: #0c0c0f;
+  --color-ink-850: #101014;
+  --color-ink-800: #16161b;
+  --color-ink-700: #1d1d24;
+  --color-ink-600: #26262f;
+  --color-ink-500: #34343f;
+  --color-ink-400: #4b4b57;
+  --color-ink-300: #6e6e7c;
+  --color-ink-200: #9a9aa7;
+  --color-ink-100: #c8c8d2;
+  --color-ink-50: #ededf1;
+
+  /* Semantic */
+  --color-positive: #34d399;
+  --color-caution: #fbbf24;
+  --color-critical: #f43f5e;
+
+  /* Typography */
+  --font-display: "Funnel Display", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Radii */
+  --radius-card: 1rem;
+  --radius-pill: 999px;
+
+  /* Shadows */
+  --shadow-glow: 0 0 0 1px rgb(255 87 34 / 0.15), 0 8px 40px -12px rgb(255 87 34 / 0.35);
+  --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 12px 36px -18px rgb(0 0 0 / 0.8);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-ink-600);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: radial-gradient(
+        1200px 600px at 85% -10%,
+        rgb(255 87 34 / 0.08),
+        transparent 60%
+      ),
+      radial-gradient(900px 500px at -10% 0%, rgb(34 211 238 / 0.05), transparent 55%),
+      var(--color-ink-950);
+    color: var(--color-ink-50);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  /* Slim, dark scrollbars to match the ink theme */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-ink-600);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-ink-500);
+    background-clip: padding-box;
+  }
+
+  /* Tabular numerics everywhere prices and metrics live */
+  .nums {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .card {
+    background: linear-gradient(180deg, var(--color-ink-850), var(--color-ink-900));
+    border: 1px solid var(--color-ink-600);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .card-hover {
+    transition:
+      border-color 160ms ease,
+      transform 160ms ease,
+      box-shadow 160ms ease;
+  }
+  .card-hover:hover {
+    border-color: var(--color-ink-500);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-glow);
+  }
+
+  /* Brand text gradient for hero numerals / wordmark */
+  .text-ember-gradient {
+    background: linear-gradient(92deg, var(--color-ember-400), var(--color-ember-600));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Animated status dot */
+  .pulse-dot {
+    position: relative;
+  }
+  .pulse-dot::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 999px;
+    border: 2px solid currentColor;
+    opacity: 0.55;
+    animation: pulse-ring 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(0.7);
+      opacity: 0.6;
+    }
+    80%,
+    100% {
+      transform: scale(1.9);
+      opacity: 0;
+    }
+  }
+
+  @keyframes toast-in {
+    0% {
+      transform: translateY(8px);
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+}
+
+/* The wallet-adapter modal ships its own CSS; nudge it toward our palette. */
+.wallet-adapter-button-trigger {
+  background: var(--color-ember-500) !important;
+}
+.wallet-adapter-modal-wrapper {
+  background: var(--color-ink-850) !important;
+}
