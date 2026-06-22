@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	stlog "log"
 	"net/http"
@@ -176,6 +177,32 @@ func main() {
 		w.WriteHeader(healthStatus)
 		fmt.Fprintln(w, healthMsg)
 		logger.Debug("Health check endpoint hit", zap.Int("status", healthStatus), zap.String("message", healthMsg))
+	})
+
+	// Job status: the scheduler's current state for a job (queried by the gateway).
+	r.Get("/api/v1/jobs/{jobID}", func(w http.ResponseWriter, req *http.Request) {
+		jobID := chi.URLParam(req, "jobID")
+		if jobID == "" {
+			http.Error(w, "job id required", http.StatusBadRequest)
+			return
+		}
+		rec, err := jobStore.GetJob(req.Context(), jobID)
+		if err != nil || rec == nil {
+			http.Error(w, "job not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"job_id":      rec.JobID,
+			"user_id":     rec.UserID,
+			"state":       rec.State,
+			"provider_id": rec.ProviderID,
+			"attempts":    rec.Attempts,
+			"last_error":  rec.LastError,
+			"job_name":    rec.JobName,
+			"received_at": rec.ReceivedAt,
+			"updated_at":  rec.UpdatedAt,
+		})
 	})
 
 	srv := server.NewServer(cfg, r, logger)

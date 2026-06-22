@@ -25,6 +25,7 @@ type Config struct {
 	AuthServiceURL    string `yaml:"auth_service_url"`
 	GpuServiceURL     string `yaml:"gpu_service_url"`
 	BillingServiceURL string `yaml:"billing_service_url"`
+	SchedulerURL      string `yaml:"scheduler_service_url"`
 }
 
 // LoadConfig reads configuration from the given YAML file path.
@@ -44,6 +45,7 @@ func LoadConfig(path string) (*Config, error) {
 		AuthServiceURL:    "http://localhost:8090",
 		GpuServiceURL:     "http://localhost:8084",
 		BillingServiceURL: "http://localhost:8082",
+		SchedulerURL:      "http://localhost:8084",
 	}
 
 	// I need to check if the config file exists.
@@ -121,6 +123,9 @@ func overrideFromEnv(cfg *Config) {
 	if v := os.Getenv("BILLING_SERVICE_URL"); v != "" {
 		cfg.BillingServiceURL = v
 	}
+	if v := os.Getenv("SCHEDULER_SERVICE_URL"); v != "" {
+		cfg.SchedulerURL = v
+	}
 	// Note: Overriding time.Duration from env vars would require parsing.
 	// For now, keeping it simple and only overriding string/simple types.
 }
@@ -160,6 +165,9 @@ func applyDefaultsIfNotSet(cfg *Config, defaults *Config) {
 	}
 	if cfg.BillingServiceURL == "" {
 		cfg.BillingServiceURL = defaults.BillingServiceURL
+	}
+	if cfg.SchedulerURL == "" {
+		cfg.SchedulerURL = defaults.SchedulerURL
 	}
 }
 

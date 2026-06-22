@@ -8,6 +8,7 @@ import (
 
 	"github.com/dante-gpu/dante-backend/api-gateway/internal/auth"
 	"github.com/dante-gpu/dante-backend/api-gateway/internal/config"
+	"github.com/dante-gpu/dante-backend/api-gateway/internal/upstream"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
@@ -126,41 +127,17 @@ func (h *JobHandler) SubmitJob(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetJobStatus handles requests to get the status of a specific job.
-// NOTE: This is a placeholder. The API Gateway might not be the ideal place
-// to query job status directly. This might involve querying the
-// scheduler-orchestrator-service or a dedicated job status service via REST/gRPC,
-// or potentially using NATS request-reply if the responsible service listens.
-// For now, it just returns a mock response.
+// GetJobStatus returns the scheduler's current state for a job by querying the
+// scheduler-orchestrator-service (which owns the job state machine).
 func (h *JobHandler) GetJobStatus(w http.ResponseWriter, r *http.Request) {
 	jobID := chi.URLParam(r, "jobID")
-	h.Logger.Info("Received request for job status", zap.String("jobID", jobID))
-
-	// --- Placeholder Logic ---
-	// In a real implementation:
-	// 1. Extract jobID from URL.
-	// 2. Make a request (e.g., gRPC) to the scheduler/job service to get the status.
-	// 3. Handle potential errors (not found, service unavailable).
-	// 4. Return the actual status.
-	// --- End Placeholder ---
-
-	mockStatus := "processing" // Or "queued", "completed", "failed", "cancelled"
-	if jobID == "known-completed-id" {
-		mockStatus = "completed"
+	if jobID == "" {
+		http.Error(w, "job id required", http.StatusBadRequest)
+		return
 	}
-
-	resp := map[string]interface{}{ // Using a map for flexibility in mock response
-		"job_id":    jobID,
-		"status":    mockStatus,
-		"timestamp": time.Now(),
-		"message":   fmt.Sprintf("Mock status for job %s is %s", jobID, mockStatus),
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		h.Logger.Error("Failed to encode job status response", zap.Error(err))
-	}
+	h.Logger.Info("Fetching job status from scheduler", zap.String("jobID", jobID))
+	url := upstream.BuildURL(h.Config.SchedulerURL, "/api/v1/jobs/"+jobID)
+	upstream.GetJSON(w, r.Context(), url, r.Header.Get("Authorization"), h.Logger)
 }
 
 // CancelJob handles requests to cancel a running job.
