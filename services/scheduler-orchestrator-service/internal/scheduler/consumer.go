@@ -292,7 +292,39 @@ func (jc *JobConsumer) scheduleJob(internalJob *models.InternalJobRepresentation
 			)
 			continue
 		}
-		// TODO: Add more sophisticated matching: VRAM, specific GPU models within a provider if heterogeneous... -virjilakrum
+
+		// VRAM Matching: the renter can demand a minimum amount of VRAM on a single
+		// GPU (e.g. a 70B model needs >= 48GB). We look at the best (largest-VRAM)
+		// GPU the provider exposes; if even that cannot satisfy the request the
+		// provider is skipped. This prevents dispatching a job that would OOM on the
+		// provider's hardware.
+		if job.MinVRAMMB > 0 {
+			bestVRAM := bestProviderVRAM(&provider)
+			if bestVRAM < job.MinVRAMMB {
+				jc.logger.Debug("Skipping provider: insufficient VRAM",
+					zap.String("provider_id", provider.ID.String()),
+					zap.Uint64("provider_best_vram_mb", bestVRAM),
+					zap.Uint64("job_requires_mb", job.MinVRAMMB),
+				)
+				continue
+			}
+		}
+
+		// Power Matching: some workloads (sustained training) require the provider's
+		// GPU to carry a high enough rated power envelope. Providers that do not
+		// report a power figure are conservatively skipped when a floor is requested,
+		// because we cannot guarantee they can sustain the load.
+		if job.MinPowerW > 0 {
+			bestPower := bestProviderPowerW(&provider)
+			if uint64(bestPower) < job.MinPowerW {
+				jc.logger.Debug("Skipping provider: insufficient power envelope",
+					zap.String("provider_id", provider.ID.String()),
+					zap.Uint32("provider_best_power_w", bestPower),
+					zap.Uint64("job_requires_w", job.MinPowerW),
+				)
+				continue
+			}
+		}
 
 		suitableProvider = &provider
 		jc.logger.Info("Found suitable provider for job",
@@ -318,23 +350,21 @@ func (jc *JobConsumer) scheduleJob(internalJob *models.InternalJobRepresentation
 	if jc.billingClient != nil {
 		// Validate user has sufficient balance
 		gpuModel := jc.findProviderGPUType(suitableProvider)
-		vramMB := uint64(8192)         // Default 8GB, should come from provider GPU specs
-		estimatedPowerW := uint32(250) // Default 250W, should come from provider GPU specs
+		vramMB := uint64(8192)         // Default 8GB, overridden by actual provider GPU specs below
+		estimatedPowerW := uint32(250) // Default 250W, overridden by actual provider GPU specs below
 
 		if len(suitableProvider.GPUs) > 0 {
-			// Use actual GPU specs if available
+			// Use actual GPU specs reported by the provider daemon at registration.
 			gpu := suitableProvider.GPUs[0]
 			if gpu.VRAM > 0 {
 				vramMB = gpu.VRAM
 			}
-			// Power consumption would need to be added to GPUDetail struct
-			// For now, use default values based on GPU model
-			if strings.Contains(strings.ToLower(gpu.ModelName), "4090") {
-				estimatedPowerW = 450
-			} else if strings.Contains(strings.ToLower(gpu.ModelName), "a100") {
-				estimatedPowerW = 400
-			} else if strings.Contains(strings.ToLower(gpu.ModelName), "h100") {
-				estimatedPowerW = 700
+			// Prefer the measured power envelope; fall back to a model heuristic so
+			// billing estimates stay sane even for daemons that never reported power.
+			if gpu.PowerConsumption > 0 {
+				estimatedPowerW = gpu.PowerConsumption
+			} else {
+				estimatedPowerW = estimatePowerFromModel(gpu.ModelName)
 			}
 		}
 
@@ -432,6 +462,58 @@ func (jc *JobConsumer) findProviderGPUType(provider *clients.Provider) string {
 		return provider.GPUs[0].ModelName
 	}
 	return "unknown-gpu"
+}
+
+// bestProviderVRAM returns the largest single-GPU VRAM (in MB) the provider
+// exposes. Heterogeneous rigs may pack different cards; we match against the
+// strongest one because the scheduler currently pins a job to one GPU slot.
+func bestProviderVRAM(provider *clients.Provider) uint64 {
+	var best uint64
+	for _, g := range provider.GPUs {
+		if g.VRAM > best {
+			best = g.VRAM
+		}
+	}
+	return best
+}
+
+// bestProviderPowerW returns the highest rated power envelope (in Watts) across
+// the provider's GPUs. Falls back to a model-name heuristic when the registry
+// did not capture a power figure, so older daemons that never reported power
+// still get a sensible estimate instead of being treated as 0W.
+func bestProviderPowerW(provider *clients.Provider) uint32 {
+	var best uint32
+	for _, g := range provider.GPUs {
+		p := g.PowerConsumption
+		if p == 0 {
+			p = estimatePowerFromModel(g.ModelName)
+		}
+		if p > best {
+			best = p
+		}
+	}
+	return best
+}
+
+// estimatePowerFromModel maps a few well-known GPU model names to their typical
+// board power so power-aware matching and billing degrade gracefully when a
+// provider's registration omitted the measured power_consumption_w field.
+func estimatePowerFromModel(model string) uint32 {
+	m := strings.ToLower(model)
+	switch {
+	case strings.Contains(m, "h100"):
+		return 700
+	case strings.Contains(m, "4090"):
+		return 450
+	case strings.Contains(m, "a100"):
+		return 400
+	case strings.Contains(m, "4080"), strings.Contains(m, "3090"):
+		return 350
+	case strings.Contains(m, "a6000"), strings.Contains(m, "l40"):
+		return 300
+	default:
+		return 250
+	}
 }
 
 // Stop gracefully shuts down the JobConsumer.

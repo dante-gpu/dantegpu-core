@@ -31,9 +31,10 @@ const (
 // GPUDetail holds specific information about a GPU.
 // This must match the models.GPUDetail in provider-registry-service.
 type GPUDetail struct {
-	ModelName     string `json:"model_name"`
-	VRAM          uint64 `json:"vram_mb"` // VRAM in Megabytes
-	DriverVersion string `json:"driver_version"`
+	ModelName        string `json:"model_name"`
+	VRAM             uint64 `json:"vram_mb"` // VRAM in Megabytes
+	DriverVersion    string `json:"driver_version"`
+	PowerConsumption uint32 `json:"power_consumption_w,omitempty"` // Rated sustained power envelope in Watts (mirrors provider-registry model)
 }
 
 // Provider represents a registered GPU provider as returned by the provider-registry-service.

@@ -17,9 +17,11 @@ type Job struct {
 	SubmittedAt time.Time `json:"submitted_at"`       // Timestamp from api-gateway
 
 	// Resource Requirements
-	GPUType  string `json:"gpu_type,omitempty"`  // Specific GPU model or class required (e.g., "nvidia-a100", "any-rtx")
-	GPUCount int    `json:"gpu_count,omitempty"` // Number of GPUs required
-	// Other requirements like min_vram_mb, cpu_cores, memory_gb could be added
+	GPUType   string `json:"gpu_type,omitempty"`    // Specific GPU model or class required (e.g., "nvidia-a100", "any-rtx")
+	GPUCount  int    `json:"gpu_count,omitempty"`   // Number of GPUs required
+	MinVRAMMB uint64 `json:"min_vram_mb,omitempty"` // Minimum VRAM (in MB) a single GPU on the provider must expose
+	MinPowerW uint64 `json:"min_power_w,omitempty"` // Minimum sustained power envelope (in Watts) the provider GPU must support
+	// Other requirements like cpu_cores, memory_gb could be added
 
 	Params map[string]interface{} `json:"params"` // Job-specific parameters (e.g., script path, dataset URI, hyperparameters)
 	Tags   []string               `json:"tags,omitempty"`

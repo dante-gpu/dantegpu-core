@@ -37,6 +37,8 @@ type SubmitJobRequest struct {
 	Description string                 `json:"description,omitempty"`
 	GPUType     string                 `json:"gpu_type,omitempty"`
 	GPUCount    int                    `json:"gpu_count,omitempty"`
+	MinVRAMMB   uint64                 `json:"min_vram_mb,omitempty"` // Optional: require a GPU with at least this much VRAM
+	MinPowerW   uint64                 `json:"min_power_w,omitempty"` // Optional: require a GPU rated for at least this power envelope
 	Priority    int                    `json:"priority,omitempty"`
 	Params      map[string]interface{} `json:"params"`
 	Tags        []string               `json:"tags,omitempty"`
