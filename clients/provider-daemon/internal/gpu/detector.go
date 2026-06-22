@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
-	"regexp"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -239,44 +240,97 @@ func (d *Detector) detectNVIDIAGPUs(ctx context.Context) ([]GPUInfo, error) {
 
 // detectAMDGPUs detects AMD GPUs using rocm-smi
 func (d *Detector) detectAMDGPUs(ctx context.Context) ([]GPUInfo, error) {
-	// Check if rocm-smi is available
 	if !d.isCommandAvailable("rocm-smi") {
 		return nil, fmt.Errorf("rocm-smi not found")
 	}
+	cards, err := d.runRocmSMI(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	cmd := exec.CommandContext(ctx, "rocm-smi", "--showid", "--showproductname", "--showmeminfo", "vram", "--showpower", "--showtemp", "--showuse")
+	var gpus []GPUInfo
+	for cardKey, fields := range cards {
+		idx := strings.TrimPrefix(strings.ToLower(cardKey), "card")
+		name := amdField(fields, "Device Name", "Card series", "Card model", "Card SKU")
+		if name == "" {
+			name = "AMD GPU"
+		}
+		gpu := GPUInfo{
+			ID:          "amd-" + idx,
+			Vendor:      "AMD",
+			Name:        name,
+			Model:       name,
+			IsAvailable: true,
+			PCIBusID:    amdField(fields, "PCI Bus", "GPU ID"),
+		}
+		gpu.VRAMTotal = amdParseMB(amdField(fields, "VRAM Total Memory"))
+		gpu.VRAMUsed = amdParseMB(amdField(fields, "VRAM Total Used Memory"))
+		if gpu.VRAMTotal >= gpu.VRAMUsed {
+			gpu.VRAMFree = gpu.VRAMTotal - gpu.VRAMUsed
+		}
+		gpu.Temperature = uint8(amdParseFloat(amdField(fields, "Temperature (Sensor edge)", "Temperature (Sensor junction)", "Temperature")))
+		gpu.PowerDraw = uint32(amdParseFloat(amdField(fields, "Average Graphics Package Power", "Current Socket Graphics Package Power", "Power")))
+		gpu.Utilization = uint8(amdParseFloat(amdField(fields, "GPU use (%)", "GPU use")))
+		gpus = append(gpus, gpu)
+	}
+	return gpus, nil
+}
+
+// runRocmSMI runs rocm-smi in JSON mode and returns the per-card field maps.
+func (d *Detector) runRocmSMI(ctx context.Context) (map[string]map[string]interface{}, error) {
+	cmd := exec.CommandContext(ctx, "rocm-smi",
+		"--showid", "--showproductname", "--showmeminfo", "vram",
+		"--showpower", "--showtemp", "--showuse", "--json")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to run rocm-smi: %w", err)
 	}
-
-	var gpus []GPUInfo
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-
-	// Parse rocm-smi output (format varies, this is a simplified parser)
-	for _, line := range lines {
-		if strings.Contains(line, "GPU") && strings.Contains(line, "card") {
-			gpu := GPUInfo{
-				Vendor:      "AMD",
-				IsAvailable: true,
-			}
-
-			// Extract GPU ID
-			re := regexp.MustCompile(`card(\d+)`)
-			if matches := re.FindStringSubmatch(line); len(matches) > 1 {
-				gpu.ID = fmt.Sprintf("amd-%s", matches[1])
-			}
-
-			// This is a simplified implementation
-			// In production, you would need more sophisticated parsing
-			gpu.Name = "AMD GPU"
-			gpu.Model = "AMD GPU"
-
-			gpus = append(gpus, gpu)
+	var raw map[string]map[string]interface{}
+	if err := json.Unmarshal(output, &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse rocm-smi json: %w", err)
+	}
+	cards := make(map[string]map[string]interface{})
+	for k, v := range raw {
+		if strings.HasPrefix(strings.ToLower(k), "card") {
+			cards[k] = v
 		}
 	}
+	return cards, nil
+}
 
-	return gpus, nil
+// amdField returns the first field value whose key contains any of the given
+// substrings (case-insensitive). rocm-smi key names vary across versions.
+func amdField(fields map[string]interface{}, subs ...string) string {
+	for k, v := range fields {
+		lk := strings.ToLower(k)
+		for _, s := range subs {
+			if strings.Contains(lk, strings.ToLower(s)) {
+				return strings.TrimSpace(fmt.Sprintf("%v", v))
+			}
+		}
+	}
+	return ""
+}
+
+// amdParseMB parses a byte string (rocm-smi reports VRAM in bytes) into MB.
+func amdParseMB(s string) uint64 {
+	if s == "" {
+		return 0
+	}
+	f, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	if err != nil {
+		return 0
+	}
+	return uint64(f / (1024 * 1024))
+}
+
+// amdParseFloat parses a numeric string, tolerating surrounding whitespace.
+func amdParseFloat(s string) float64 {
+	if s == "" {
+		return 0
+	}
+	f, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	return f
 }
 
 // detectAppleGPUs detects Apple Silicon GPUs
@@ -353,28 +407,49 @@ func (d *Detector) detectAppleGPUs(ctx context.Context) ([]GPUInfo, error) {
 	return gpus, nil
 }
 
-// detectIntelGPUs detects Intel GPUs
+// detectIntelGPUs detects Intel GPUs via sysfs (vendor id 0x8086). This works
+// without any Intel tooling and reports real devices instead of a placeholder.
 func (d *Detector) detectIntelGPUs(ctx context.Context) ([]GPUInfo, error) {
-	// Check if intel_gpu_top is available
-	if !d.isCommandAvailable("intel_gpu_top") {
-		return nil, fmt.Errorf("intel_gpu_top not found")
+	if runtime.GOOS != "linux" {
+		return nil, fmt.Errorf("Intel GPU sysfs detection only supported on Linux")
+	}
+	vendorPaths, err := filepath.Glob("/sys/class/drm/card[0-9]*/device/vendor")
+	if err != nil {
+		return nil, err
 	}
 
-	// This is a simplified implementation
-	// Intel GPU detection would require more sophisticated tools
 	var gpus []GPUInfo
+	for _, vendorPath := range vendorPaths {
+		vb, err := os.ReadFile(vendorPath)
+		if err != nil || strings.TrimSpace(string(vb)) != "0x8086" {
+			continue
+		}
+		deviceDir := filepath.Dir(vendorPath)                  // /sys/class/drm/cardN/device
+		cardName := filepath.Base(filepath.Dir(deviceDir))     // cardN
+		idx := strings.TrimPrefix(cardName, "card")
 
-	// For now, just detect if Intel GPU tools are available
-	gpu := GPUInfo{
-		ID:          "intel-0",
-		Name:        "Intel GPU",
-		Model:       "Intel GPU",
-		Vendor:      "Intel",
-		IsAvailable: true,
+		name := "Intel GPU"
+		if db, err := os.ReadFile(filepath.Join(deviceDir, "device")); err == nil {
+			name = "Intel GPU " + strings.TrimSpace(string(db))
+		}
+		gpu := GPUInfo{
+			ID:          "intel-" + idx,
+			Name:        name,
+			Model:       name,
+			Vendor:      "Intel",
+			IsAvailable: true,
+		}
+		// Discrete Arc / Data Center GPUs expose dedicated VRAM via lmem.
+		if vt, err := os.ReadFile(filepath.Join(deviceDir, "lmem_total_bytes")); err == nil {
+			if b, e := strconv.ParseUint(strings.TrimSpace(string(vt)), 10, 64); e == nil {
+				gpu.VRAMTotal = b / (1024 * 1024)
+			}
+		}
+		gpus = append(gpus, gpu)
 	}
-
-	gpus = append(gpus, gpu)
-
+	if len(gpus) == 0 {
+		return nil, fmt.Errorf("no Intel GPU found")
+	}
 	return gpus, nil
 }
 
@@ -550,14 +625,79 @@ func (d *Detector) getNVIDIAMetrics(ctx context.Context) ([]GPUMetrics, error) {
 
 // getAMDMetrics gets real-time metrics for AMD GPUs
 func (d *Detector) getAMDMetrics(ctx context.Context) ([]GPUMetrics, error) {
-	// Simplified implementation for AMD GPUs
-	return []GPUMetrics{}, nil
+	if !d.isCommandAvailable("rocm-smi") {
+		return []GPUMetrics{}, nil
+	}
+	cards, err := d.runRocmSMI(ctx)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	var metrics []GPUMetrics
+	for cardKey, fields := range cards {
+		idx := strings.TrimPrefix(strings.ToLower(cardKey), "card")
+		m := GPUMetrics{
+			ID:          "amd-" + idx,
+			Timestamp:   now,
+			Utilization: uint8(amdParseFloat(amdField(fields, "GPU use (%)", "GPU use"))),
+			VRAMUsed:    amdParseMB(amdField(fields, "VRAM Total Used Memory")),
+			VRAMTotal:   amdParseMB(amdField(fields, "VRAM Total Memory")),
+			PowerDraw:   uint32(amdParseFloat(amdField(fields, "Average Graphics Package Power", "Power"))),
+			Temperature: uint8(amdParseFloat(amdField(fields, "Temperature (Sensor edge)", "Temperature"))),
+		}
+		metrics = append(metrics, m)
+	}
+	return metrics, nil
 }
 
 // getAppleMetrics gets real-time metrics for Apple GPUs
 func (d *Detector) getAppleMetrics(ctx context.Context) ([]GPUMetrics, error) {
-	// Placeholder for Apple GPU metrics
-	return []GPUMetrics{}, nil
+	if runtime.GOOS != "darwin" {
+		return []GPUMetrics{}, nil
+	}
+	// IOAccelerator's PerformanceStatistics expose live GPU utilization and the
+	// in-use unified memory without requiring root (unlike powermetrics).
+	cmd := exec.CommandContext(ctx, "ioreg", "-r", "-d", "1", "-c", "IOAccelerator", "-w", "0")
+	output, err := cmd.Output()
+	if err != nil {
+		return []GPUMetrics{}, nil
+	}
+	text := string(output)
+	m := GPUMetrics{ID: "apple-0", Timestamp: time.Now().UTC()}
+	if v := extractIORegNumber(text, `"Device Utilization %"=`); v >= 0 {
+		m.Utilization = uint8(v)
+	}
+	if v := extractIORegNumber(text, `"In use system memory"=`); v >= 0 {
+		m.VRAMUsed = uint64(v) / (1024 * 1024)
+	}
+	return []GPUMetrics{m}, nil
+}
+
+// extractIORegNumber reads the numeric value that follows a marker in ioreg
+// output (for example `"Device Utilization %"=12`). Returns -1 if absent.
+func extractIORegNumber(text, marker string) float64 {
+	i := strings.Index(text, marker)
+	if i < 0 {
+		return -1
+	}
+	rest := text[i+len(marker):]
+	end := 0
+	for end < len(rest) {
+		c := rest[end]
+		if (c >= '0' && c <= '9') || c == '.' {
+			end++
+			continue
+		}
+		break
+	}
+	if end == 0 {
+		return -1
+	}
+	f, err := strconv.ParseFloat(rest[:end], 64)
+	if err != nil {
+		return -1
+	}
+	return f
 }
 
 // DetectGPUsOnce performs an immediate, one-time detection of GPUs and returns them.
