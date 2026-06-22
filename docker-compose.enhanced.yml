@@ -190,9 +190,13 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
 
-  # Enhanced Frontend
+  # DanteGPU web console (Vite + React, served by nginx)
   frontend:
-    image: dante/gpu-rental-frontend:latest
+    build:
+      context: ./clients/console
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: "http://localhost:8080"
     ports:
       - "3000:80"
     depends_on:

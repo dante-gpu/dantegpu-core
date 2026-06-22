@@ -129,7 +129,7 @@ deploy_frontend() {
     
     # Provider Web App
     print_info "Deploying Provider Web App..."
-    kubectl apply -f k8s/staging/provider-web-app-deployment.yaml || echo "Provider web app deployment not found, skipping..."
+    kubectl apply -f k8s/staging/console-deployment.yaml || echo "Console deployment not found, skipping..."
     
     print_success "Frontend deployed"
 }

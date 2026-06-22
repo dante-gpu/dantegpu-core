@@ -85,14 +85,14 @@ echo -e "${CYAN}  Starting Frontend${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-cd "$PROJECT_ROOT/gpu-rental-frontend"
+cd "$PROJECT_ROOT/clients/console"
 
 if [ ! -d "node_modules" ]; then
     echo -e "${YELLOW}📦 Installing frontend dependencies...${NC}"
     npm install --silent
 fi
 
-echo -e "${YELLOW}💻 Starting Frontend on port 3000...${NC}"
+echo -e "${YELLOW}💻 Starting Console on port 5273...${NC}"
 npm run dev > /tmp/dantegpu-frontend.log 2>&1 &
 FRONTEND_PID=$!
 echo -e "${GREEN}✅ Frontend started (PID: $FRONTEND_PID)${NC}"

@@ -25,23 +25,23 @@ step (see [docs/STATUS.md](docs/STATUS.md) for the per-service breakdown).
 | Verb | What happens | Services | State |
 |------|--------------|----------|-------|
 | **LIST** | A provider registers and its GPUs are detected | `provider-registry-service`, `provider-daemon` | Working (NVIDIA solid; AMD via rocm-smi, Apple via system_profiler, with some hardcoded VRAM mappings) |
-| **DISCOVER** | A renter browses the catalog | `gpu-service`, `gpu-rental-frontend` | Working (read path) |
-| **RENT** | A renter reserves a GPU and funds are locked | `rental-service`, `billing-payment-service` | Working in DB (on-chain escrow is open) |
-| **RUN** | A job is dispatched and executed on the provider | `scheduler-orchestrator-service`, `provider-daemon` | Partial (NATS dispatch + Docker exec real; matching is type+count only and ignores VRAM/power; K8s extender is an unused stub) |
-| **METER** | Usage is sampled per minute | `gpu-monitoring-service` | Partial (real `nvidia-smi` sampling; not yet delivered to billing) |
-| **SETTLE** | The provider is paid in dGPU on Solana | `billing-payment-service` | Partial (payout recorded in DB; on-chain transfer not executed) |
+| **DISCOVER** | A renter browses the catalog | `gpu-service`, `console` | Working (read path) |
+| **RENT** | A renter reserves a GPU and funds are locked | `rental-service`, `billing-payment-service` | Working (USDC billing; on-chain Covenant escrow opened on session start) |
+| **RUN** | A job is dispatched and executed on the provider | `scheduler-orchestrator-service`, `provider-daemon` | Working (NATS dispatch + Docker exec; matching by type, count, VRAM and power; K8s extender is an unused stub) |
+| **METER** | Usage is sampled per second | `provider-daemon`, `billing-payment-service` | Working (real per-vendor GPU metrics threaded into the billing session) |
+| **SETTLE** | The provider is paid in USDC on Solana | `billing-payment-service` | Partial (Phase 1 fixed-duration on-chain settlement via Covenant; metered refund is the open work) |
 
-The honest one-line summary: **you can list a GPU, find it, rent it, and run a job
-on it; the money path locks and accounts correctly in the database, but the
-provider-side on-chain payout and the meter-to-bill wiring are the open work.**
+The honest one-line summary: **you can list a GPU, find it, rent it in USDC, run a
+job, and have the session settle on-chain via Covenant; the remaining open work is
+true metered (partial) refund and mainnet hardening.**
 
 ## Architecture
 
 ```mermaid
 flowchart TD
     subgraph Clients
-      FE[gpu-rental-frontend<br/>React/Vite]
-      GUI[provider-gui<br/>Tauri desktop]
+      FE[console<br/>Vite + React + Tailwind v4]
+      DAEMON_C[provider-daemon<br/>node agent]
     end
 
     GW[api-gateway :8080<br/>chi router, JWT, proxy]
@@ -155,7 +155,7 @@ Core service ports once the stack is up:
 | 8084 | scheduler-orchestrator-service |
 | 8090 | auth-service |
 | 8092 | gpu-monitoring-service |
-| 5174 | gpu-rental-frontend |
+| 5174 | console (web frontend) |
 
 Supporting infra runs on its standard ports: PostgreSQL 5432, Redis 6379, NATS
 4222 (monitoring 8222), Consul 8500, MinIO 9000/9001, Prometheus 9090, Grafana
@@ -185,10 +185,9 @@ services/                     Backend Go microservices (one module each)
   gpu-monitoring-service/     nvidia-smi metrics + WebSocket stream
   redis-cache-service/        Cache helpers (library, imported by services)
 clients/                      Apps and node agents
-  gpu-rental-frontend/        React/Vite renter dashboard
-  provider-gui/               Tauri desktop app for providers
+  console/                    DanteGPU web console (Vite + React + Tailwind v4):
+                              marketplace, rent flow, USDC wallet, provider dashboard
   provider-daemon/            Provider node agent: GPU detect, Docker/script exec
-  provider-web-app/           Provider marketing/landing
 contracts/                    On-chain settlement integration (Covenant) + future programs
 common/                       Shared Go types and utilities (root module)
 cmd/                          Root-module executables (provider, rental, tooling)

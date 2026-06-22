@@ -88,7 +88,7 @@ kubectl patch service api-gateway -n $NAMESPACE \
     -p "{\"spec\":{\"selector\":{\"version\":\"$NEW_COLOR\"}}}"
 kubectl patch service user-dashboard -n $NAMESPACE \
     -p "{\"spec\":{\"selector\":{\"version\":\"$NEW_COLOR\"}}}"
-kubectl patch service provider-web-app -n $NAMESPACE \
+kubectl patch service console -n $NAMESPACE \
     -p "{\"spec\":{\"selector\":{\"version\":\"$NEW_COLOR\"}}}"
 print_success "Traffic switched to $NEW_COLOR"
 

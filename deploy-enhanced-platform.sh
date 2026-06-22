@@ -191,57 +191,13 @@ EOF
         print_success "Stripe/PayPal Integration built"
     fi
     
-    # Build Enhanced Frontend
-    if [ -d "gpu-rental-frontend" ]; then
-        print_status "Building Enhanced Frontend..."
-        cd gpu-rental-frontend
-        cat > Dockerfile << 'EOF'
-FROM node:18-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-FROM nginx:alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/nginx.conf
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
-EOF
-        
-        # Create nginx config
-        cat > nginx.conf << 'EOF'
-events {
-    worker_connections 1024;
-}
-
-http {
-    include /etc/nginx/mime.types;
-    default_type application/octet-stream;
-    
-    server {
-        listen 80;
-        server_name localhost;
-        root /usr/share/nginx/html;
-        index index.html;
-        
-        location / {
-            try_files $uri $uri/ /index.html;
-        }
-        
-        location /api/ {
-            proxy_pass http://api-gateway:8080;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-        }
-    }
-}
-EOF
-        
-        docker build -t dante/gpu-rental-frontend:latest .
-        cd ..
-        print_success "Enhanced Frontend built"
+    # Build the DanteGPU web console (ships its own Dockerfile + nginx.conf).
+    if [ -d "clients/console" ]; then
+        print_status "Building DanteGPU Console..."
+        docker build -t dante/console:latest \
+            --build-arg VITE_API_BASE_URL="${PUBLIC_API_URL:-http://localhost:8080}" \
+            ./clients/console
+        print_success "Console built"
     fi
 }
 
@@ -425,9 +381,9 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
 
-  # Enhanced Frontend
+  # DanteGPU web console
   frontend:
-    image: dante/gpu-rental-frontend:latest
+    image: dante/console:latest
     ports:
       - "3000:80"
     depends_on:

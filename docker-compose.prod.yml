@@ -285,23 +285,23 @@ services:
       retries: 3
     restart: unless-stopped
 
-  # Frontend Web Application (Next.js)
+  # Frontend: DanteGPU web console (Vite + React, served by nginx)
   frontend:
     build:
-      context: ./clients/gpu-rental-frontend
+      context: ./clients/console
       dockerfile: Dockerfile
-    container_name: dante-frontend
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8080
-      NEXT_PUBLIC_WS_URL: ws://localhost:8080
+      args:
+        VITE_API_BASE_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+        VITE_SOLANA_CLUSTER: ${SOLANA_CLUSTER:-mainnet-beta}
+    container_name: dante-console
     ports:
-      - "3000:3000"
+      - "3000:80"
     depends_on:
       - api-gateway
     networks:
       - dante-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -29,8 +29,8 @@ Consul and communicate events over NATS JetStream. The canonical schema is in
 The canonical services are: `api-gateway`, `auth-service`,
 `provider-registry-service`, `gpu-service`, `rental-service`,
 `billing-payment-service`, `scheduler-orchestrator-service`, `storage-service`,
-`gpu-monitoring-service`, `redis-cache-service`. The provider side is
-`provider-daemon` and `provider-gui`.
+`gpu-monitoring-service`, `redis-cache-service`. The provider side is the
+`provider-daemon` node agent, and the web frontend is `clients/console`.
 
 ## Local development
 
@@ -51,7 +51,7 @@ go test ./...
 For the frontend:
 
 ```bash
-cd gpu-rental-frontend
+cd clients/console
 npm install
 npm run dev
 ```

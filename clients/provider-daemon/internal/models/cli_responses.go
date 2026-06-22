@@ -2,7 +2,7 @@ package models
 
 import "time"
 
-// CliGpuInfo mirrors the GpuInfo struct in provider-gui/src-tauri/src/main.rs
+// CliGpuInfo is the daemon CLI/JSON response shape for a detected GPU.
 type CliGpuInfo struct {
 	ID                    string   `json:"id"`
 	Name                  string   `json:"name"`
@@ -16,7 +16,7 @@ type CliGpuInfo struct {
 	CurrentHourlyRateDGPU *float32 `json:"current_hourly_rate_dgpu,omitempty"`
 }
 
-// CliProviderSettings mirrors the ProviderSettings struct in provider-gui
+// CliProviderSettings is the daemon CLI/JSON response shape for provider settings.
 type CliProviderSettings struct {
 	DefaultHourlyRateDGPU float32 `json:"default_hourly_rate_dgpu"`
 	PreferredCurrency     string  `json:"preferred_currency"`
@@ -24,7 +24,7 @@ type CliProviderSettings struct {
 	MaxConcurrentJobs     uint32  `json:"max_concurrent_jobs"`
 }
 
-// CliLocalJob mirrors the LocalJob struct in provider-gui
+// CliLocalJob is the daemon CLI/JSON response shape for a locally tracked job.
 type CliLocalJob struct {
 	ID                string   `json:"id"`
 	Name              string   `json:"name"`
@@ -54,7 +54,7 @@ type CliNetworkStatus struct {
 	ActiveSubscriptions int    `json:"active_subscriptions,omitempty"` // Example: Number of active NATS subscriptions
 }
 
-// CliFinancialSummary mirrors the FinancialSummary struct in provider-gui
+// CliFinancialSummary is the daemon CLI/JSON response shape for earnings.
 type CliFinancialSummary struct {
 	CurrentBalanceDGPU float32 `json:"current_balance_dgpu"`
 	TotalEarnedDGPU    float32 `json:"total_earned_dgpu"`

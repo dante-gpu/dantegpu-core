@@ -111,10 +111,16 @@ repo.
 
 Make the claims the old README made actually true, one at a time.
 
-- Real AMD (ROCm), Intel, and Apple Silicon GPU detection in the provider daemon,
-  replacing the hardcoded VRAM fallbacks
-- Payment and wallet UI in `gpu-rental-frontend` (deposit, balance, rental cost)
-- Standardize the API base URL across all clients (they currently disagree)
+- [x] Real AMD (ROCm), Intel, and Apple Silicon GPU detection in the provider
+  daemon, replacing the hardcoded VRAM fallbacks
+- [x] Payment and wallet UI in the new `clients/console` (USDC deposit/withdraw,
+  balance, live rental cost, provider earnings)
+- [x] Standardize the API base URL across clients (the console routes everything
+  through the gateway via `VITE_API_BASE_URL`)
+- [ ] True metered (partial) on-chain refund (Covenant `settle_metered`); Phase 1
+  is fixed-duration prepaid settlement
+- [ ] Mainnet hardening: secrets management, rate limiting, audit logging, e2e,
+  and the mainnet deploy
 - A native mobile client is out of scope for now (the earlier skeleton was removed)
 
 Pass: a provider on a non-NVIDIA card lists accurate specs; a renter can fund a

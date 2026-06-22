@@ -128,7 +128,7 @@ tracked against the Covenant repo).
 - `provider-daemon`: emit the signed metering receipt at session end, upload it,
   and call `submit_work` (or hand the receipt to `billing-payment-service` to do
   so).
-- `gpu-rental-frontend`: Phase 1 fixed-duration rental UI; USDC deposit / wallet
+- `clients/console`: Phase 1 fixed-duration rental UI; USDC deposit / wallet
   connect; rental SLA + dispute view.
 - `storage-service`: store metering receipts (the `delivery_uri` target).
 

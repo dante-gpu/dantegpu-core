@@ -348,18 +348,18 @@ services:
     networks:
       - dante-network
 
-  # Frontend Service
+  # Frontend: DanteGPU web console (Vite + React). VITE_* values are baked at
+  # build time via build args, so the gateway origin is passed here.
   frontend:
     build:
-      context: ./clients/provider-web-app
+      context: ./clients/console
       dockerfile: Dockerfile
-    container_name: dante-frontend
+      args:
+        VITE_API_BASE_URL: "http://localhost:8080"
+        VITE_SOLANA_CLUSTER: "devnet"
+    container_name: dante-console
     ports:
       - "5174:80"
-    environment:
-      REACT_APP_API_URL: "http://localhost:8080"
-      REACT_APP_WS_URL: "ws://localhost:8080"
-      REACT_APP_ENVIRONMENT: "development"
     depends_on:
       api-gateway:
         condition: service_healthy

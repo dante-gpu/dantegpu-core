@@ -29,16 +29,13 @@ real skeleton with a named gap. **Stub/Demo** = placeholder or development-only.
 |-----------|-------|--------------|---------|
 | `provider-daemon` | Partial | GPU detection for NVIDIA (`nvidia-smi`), AMD (`rocm-smi`), and Apple Silicon (`system_profiler`); Docker + script execution; NATS task consumption; gopsutil system metrics | Billing client is explicitly stubbed (`GetFinancialSummary` returns mock); several VRAM values are hardcoded mappings rather than queried |
 | `cmd/provider` | Working | A second, monolithic provider daemon (~2.3k lines): multi-GPU detect, Docker lifecycle, NATS, Solana wallet | Overlaps `provider-daemon`; consolidation is a future decision |
-| `provider-gui` | Working | Tauri desktop app (~2.9k lines Rust): spawns the daemon, parses real `system_profiler`, manages lifecycle | Financial summary inherits the daemon stub; wallet id hardcoded |
 | `dantegpu-device-plugin` | Working | Kubernetes device plugin gRPC (ListAndWatch, Allocate, GetPreferredAllocation) | GPU enumeration is a static count, not runtime discovery |
 
 ## Frontends
 
 | App | State | Notes |
 |-----|-------|-------|
-| `gpu-rental-frontend` | Partial | Real React/Vite SPA: auth flow, catalog fetch, active rentals. Missing payment UI; API base URL is inconsistent (:8080 vs :8090) |
-| `provider-gui` | Working | See provider side above |
-| `provider-web-app` | Demo | Marketing landing page with hardcoded terminal logs; no platform features |
+| `clients/console` | Working | Brand-new Vite + React + Tailwind v4 web console: marketplace with vendor/VRAM/price filters, rent flow, live cost meter, USDC deposit/withdraw via Solana wallet-adapter, provider earnings dashboard, live log tail, dark/light. Routes all calls through the gateway via `VITE_API_BASE_URL`. Replaced the legacy `gpu-rental-frontend`, `provider-gui` and `provider-web-app`. |
 
 ## Infrastructure and data
 
@@ -63,8 +60,12 @@ services. They remain in git history.
 | `scheduler` | No entrypoint, handler-only | `scheduler-orchestrator-service` |
 | `stripe-paypal-integration` | PayPal 100% faked, wired to nothing; billing is Solana-only | (none) |
 | `mobile-app` | 1 of 6 screens, undefined imports, would not build | (none) |
-| `user-dashboard` | Empty API-client stub, no UI, no `package.json` | `gpu-rental-frontend` |
+| `user-dashboard` | Empty API-client stub, no UI, no `package.json` | `gpu-rental-frontend` (later also removed) |
 | `src/` (Rust) | Orphaned single-file daemon controller | (none) |
+| `clients/gpu-rental-frontend` | Legacy renter SPA superseded by the rebuilt console; carried ~21 dependency vulnerabilities | `clients/console` |
+| `clients/provider-gui` | Legacy Tauri desktop app; provider flow now lives in the console + daemon; ~48 dependency vulnerabilities | `clients/console` + `provider-daemon` |
+| `clients/provider-web-app` | Marketing/landing demo with hardcoded logs; ~24 dependency vulnerabilities | `clients/console` |
+| `cmd/terminal-streaming` | Standalone tool that only served `provider-web-app`'s static files; unreferenced | (none) |
 
 Documentation removed: 11 aspirational progress reports plus three
 self-congratulatory "report" docs (`SECURITY_AUDIT_REPORT`,
