@@ -35,11 +35,19 @@ func NewClient(cfg *config.Config, logger *zap.Logger, handler TaskHandlerFunc) 
 		shutdownChan: make(chan struct{}),
 	}
 
+	// NAT / home-provider resilience: the URL may be ws:// or wss:// (NATS
+	// WebSocket) so providers on networks that block raw NATS ports can still
+	// connect over 80/443. The ping keepalive holds the NAT pinhole open and
+	// detects dead connections; reconnects are unlimited because home links drop
+	// often; the reconnect buffer holds outbound messages during brief drops.
 	nc, err := nats.Connect(
 		cfg.NatsConfig.URL,
 		nats.RetryOnFailedConnect(true),
-		nats.MaxReconnects(100), // More aggressive for daemon
+		nats.MaxReconnects(-1), // unlimited: keep trying forever for flaky home links
 		nats.ReconnectWait(3*time.Second),
+		nats.PingInterval(20*time.Second),
+		nats.MaxPingsOutstanding(3),
+		nats.ReconnectBufSize(8*1024*1024),
 		nats.Timeout(cfg.NatsConfig.ConnectTimeout),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
 			logger.Warn("NATS disconnected", zap.Error(err))
