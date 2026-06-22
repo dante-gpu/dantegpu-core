@@ -8,11 +8,13 @@ import (
 func CORS() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Set CORS headers
+			// Set CORS headers. This API authenticates via a Bearer token (no
+			// cookies), so we do NOT send Access-Control-Allow-Credentials: pairing
+			// it with a wildcard origin is an invalid combination browsers reject,
+			// and credentials mode is unnecessary for header-based auth.
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 			// Handle preflight requests
 			if r.Method == "OPTIONS" {

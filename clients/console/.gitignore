@@ -8,3 +8,9 @@ dist-ssr
 .DS_Store
 *.log
 .vite
+
+# The repo-root .gitignore has a broad `lib/` rule (meant for Go build output).
+# Re-include the console's source lib directory, which is real TypeScript source
+# (api client, types, formatters) that every component imports from @/lib/*.
+!src/lib/
+!src/lib/**

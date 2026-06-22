@@ -28,7 +28,7 @@ export default function Marketplace() {
     if (query.trim()) {
       const q = query.toLowerCase();
       rows = rows.filter(
-        (g) => g.model_name.toLowerCase().includes(q) || (g.provider_name ?? "").toLowerCase().includes(q),
+        (g) => (g.model_name ?? "").toLowerCase().includes(q) || (g.provider_name ?? "").toLowerCase().includes(q),
       );
     }
     return [...rows].sort((a, b) => {

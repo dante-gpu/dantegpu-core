@@ -139,6 +139,23 @@ func (s *BillingService) GetWalletBalance(ctx context.Context, walletID uuid.UUI
 	}, nil
 }
 
+// GetUserWallet resolves a user's primary (USDC) wallet by user id. The console
+// keys wallet/balance lookups by user id rather than wallet id, so this is the
+// entry point the gateway proxies to.
+func (s *BillingService) GetUserWallet(ctx context.Context, userID string) (*models.Wallet, error) {
+	return s.store.GetWalletByUserID(ctx, userID, models.WalletTypeUser)
+}
+
+// GetUserBalance resolves a user's primary wallet then returns its balance,
+// reconciling against Solana the same way GetWalletBalance does.
+func (s *BillingService) GetUserBalance(ctx context.Context, userID string) (*models.BalanceResponse, error) {
+	wallet, err := s.GetUserWallet(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetWalletBalance(ctx, wallet.ID)
+}
+
 // Session Management
 
 // StartRentalSession starts a new GPU rental session

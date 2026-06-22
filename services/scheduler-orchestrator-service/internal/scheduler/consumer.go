@@ -271,6 +271,15 @@ func (jc *JobConsumer) scheduleJob(internalJob *models.InternalJobRepresentation
 			continue
 		}
 
+		// A provider that reports no GPUs cannot serve a GPU rental, regardless of
+		// how unconstrained the job is. Skipping here prevents selecting such a
+		// provider and opening a billing session against fabricated placeholder
+		// specs (8GB / 250W).
+		if len(provider.GPUs) == 0 {
+			jc.logger.Debug("Skipping provider: no GPUs registered", zap.String("provider_id", provider.ID.String()))
+			continue
+		}
+
 		// GPU Type Matching (case-insensitive for flexibility)
 		if job.GPUType != "" && !strings.EqualFold(jc.findProviderGPUType(&provider), job.GPUType) {
 			// This simple check assumes if a GPUType is requested, the provider must primarily feature that type.
@@ -348,14 +357,19 @@ func (jc *JobConsumer) scheduleJob(internalJob *models.InternalJobRepresentation
 	// and end the session.
 	var sessionID string
 	if jc.billingClient != nil {
-		// Validate user has sufficient balance
+		// Validate user has sufficient balance. We bill and meter against the exact
+		// GPU that satisfied the match (largest-VRAM GPU meeting the VRAM+power
+		// floors), not blindly GPUs[0]. On a heterogeneous rig GPUs[0] may be a
+		// smaller card that did not qualify, which would otherwise open the session
+		// against the wrong specs.
 		gpuModel := jc.findProviderGPUType(suitableProvider)
-		vramMB := uint64(8192)         // Default 8GB, overridden by actual provider GPU specs below
-		estimatedPowerW := uint32(250) // Default 250W, overridden by actual provider GPU specs below
+		vramMB := uint64(8192)         // Default 8GB, overridden by the matched GPU below
+		estimatedPowerW := uint32(250) // Default 250W, overridden by the matched GPU below
 
-		if len(suitableProvider.GPUs) > 0 {
-			// Use actual GPU specs reported by the provider daemon at registration.
-			gpu := suitableProvider.GPUs[0]
+		if gpu := selectBillingGPU(suitableProvider, job.MinVRAMMB, job.MinPowerW); gpu != nil {
+			if gpu.ModelName != "" {
+				gpuModel = gpu.ModelName
+			}
 			if gpu.VRAM > 0 {
 				vramMB = gpu.VRAM
 			}
@@ -462,6 +476,36 @@ func (jc *JobConsumer) findProviderGPUType(provider *clients.Provider) string {
 		return provider.GPUs[0].ModelName
 	}
 	return "unknown-gpu"
+}
+
+// selectBillingGPU returns the GPU the job should be billed and metered against:
+// the largest-VRAM GPU that satisfies the job's VRAM and power floors. This must
+// agree with the suitability gate (which also keys off the best qualifying GPU)
+// so a heterogeneous rig is never billed against a non-qualifying GPUs[0]. The
+// gate guarantees at least one GPU qualifies, but we fall back to the first GPU
+// defensively if nothing formally clears the floors.
+func selectBillingGPU(provider *clients.Provider, minVRAM uint64, minPower uint64) *clients.GPUDetail {
+	var best *clients.GPUDetail
+	for i := range provider.GPUs {
+		g := &provider.GPUs[i]
+		if minVRAM > 0 && g.VRAM < minVRAM {
+			continue
+		}
+		power := g.PowerConsumption
+		if power == 0 {
+			power = estimatePowerFromModel(g.ModelName)
+		}
+		if minPower > 0 && uint64(power) < minPower {
+			continue
+		}
+		if best == nil || g.VRAM > best.VRAM {
+			best = g
+		}
+	}
+	if best == nil && len(provider.GPUs) > 0 {
+		best = &provider.GPUs[0]
+	}
+	return best
 }
 
 // bestProviderVRAM returns the largest single-GPU VRAM (in MB) the provider

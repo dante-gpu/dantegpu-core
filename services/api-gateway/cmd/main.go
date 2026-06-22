@@ -80,7 +80,7 @@ func main() {
 	// Create load balancer and proxy handler (even if Consul connection failed, to avoid nil pointers)
 	lb := loadbalancer.NewRoundRobin()
 	proxyHandler := handlers.NewProxyHandler(logger, cfg, consulClient, lb)
-	logHandler := handlers.NewLogHandler(logger, cfg.LokiURL)
+	logHandler := handlers.NewLogHandler(logger, cfg.LokiURL, cfg.JwtSecret, cfg.ConsoleOrigins)
 
 	// == Public Routes ==
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {

@@ -4,36 +4,72 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/dante-gpu/dante-backend/api-gateway/internal/auth"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
 
 // LogHandler holds dependencies for log-related handlers.
 type LogHandler struct {
-	Logger  *zap.Logger
-	LokiURL string
+	Logger         *zap.Logger
+	LokiURL        string
+	JwtSecret      string
+	AllowedOrigins []string
 }
 
 // NewLogHandler creates a new LogHandler.
-func NewLogHandler(logger *zap.Logger, lokiURL string) *LogHandler {
+func NewLogHandler(logger *zap.Logger, lokiURL, jwtSecret string, allowedOrigins []string) *LogHandler {
 	return &LogHandler{
-		Logger:  logger,
-		LokiURL: lokiURL,
+		Logger:         logger,
+		LokiURL:        lokiURL,
+		JwtSecret:      jwtSecret,
+		AllowedOrigins: allowedOrigins,
 	}
 }
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		// Allow all connections for now.
-		// In production, you would want to check the origin.
+// originAllowed permits same-origin requests (no Origin header, e.g. native
+// clients) and any origin on the configured allowlist. This blocks cross-site
+// WebSocket hijacking from arbitrary pages a logged-in operator might visit.
+func (h *LogHandler) originAllowed(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
 		return true
-	},
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
+	}
+	for _, allowed := range h.AllowedOrigins {
+		if origin == allowed {
+			return true
+		}
+	}
+	h.Logger.Warn("Rejected log stream from disallowed origin", zap.String("origin", origin))
+	return false
 }
 
 // StreamLogs handles the WebSocket connection for streaming logs from Loki.
+// NOTE: the Loki tail is still cluster-wide (container=~`.+`); restricting the
+// stream to the requesting tenant and gating full-fleet access behind an admin
+// role is a follow-up hardening step. Auth + origin checks below close the
+// unauthenticated / any-origin exposure.
 func (h *LogHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
+	// Browsers cannot attach an Authorization header to a WebSocket handshake, so
+	// the console passes the JWT as a `token` query param. Validate it BEFORE the
+	// upgrade so an unauthenticated caller never reaches the log stream.
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+	if _, err := auth.ValidateJWT(token, h.JwtSecret); err != nil {
+		h.Logger.Warn("Rejected log stream: invalid token", zap.Error(err))
+		http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+		return
+	}
+
+	upgrader := websocket.Upgrader{
+		CheckOrigin:     h.originAllowed,
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+	}
+
 	// Upgrade the HTTP connection to a WebSocket connection.
 	clientConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {

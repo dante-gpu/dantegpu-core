@@ -238,6 +238,12 @@ func setupHTTPServer(cfg *config.Config, billingService *service.BillingService,
 			r.Get("/{walletID}/transactions", handlers.GetTransactionHistory(billingService, logger))
 		})
 
+		// User-keyed wallet lookups (the console keys balance by user id)
+		r.Route("/user", func(r chi.Router) {
+			r.Get("/{userID}/wallet", handlers.GetUserWallet(billingService, logger))
+			r.Get("/{userID}/balance", handlers.GetUserBalance(billingService, logger))
+		})
+
 		// Billing and sessions
 		r.Route("/billing", func(r chi.Router) {
 			r.Post("/start-session", handlers.StartRentalSession(billingService, logger))

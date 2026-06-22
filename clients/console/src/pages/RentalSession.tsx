@@ -41,6 +41,7 @@ export default function RentalSession() {
   const [confirmStop, setConfirmStop] = useState(false);
   const [stopping, setStopping] = useState(false);
   const lastState = useRef<JobState | null>(null);
+  const loggedProvider = useRef(false);
 
   // Append a log line whenever the scheduler state actually changes.
   useEffect(() => {
@@ -52,7 +53,15 @@ export default function RentalSession() {
       ...prev,
       { ts: new Date().toLocaleTimeString("en-US", { hour12: false }), level: n.level, text: n.text },
     ]);
-    if (job?.provider_id && state === "assigning") {
+    if (isTerminal(state)) qc.invalidateQueries({ queryKey: ["balance"] });
+  }, [job?.state, qc]);
+
+  // Log the provider assignment the first time a provider id appears. The
+  // scheduler attaches provider_id when it dispatches (not on a separate
+  // "assigning" tick), so this is decoupled from the state-change effect.
+  useEffect(() => {
+    if (job?.provider_id && !loggedProvider.current) {
+      loggedProvider.current = true;
       setLogs((prev) => [
         ...prev,
         {
@@ -62,8 +71,7 @@ export default function RentalSession() {
         },
       ]);
     }
-    if (isTerminal(state)) qc.invalidateQueries({ queryKey: ["balance"] });
-  }, [job?.state, job?.provider_id, qc]);
+  }, [job?.provider_id]);
 
   if (isLoading && !job) return <FullPageSpinner label="Loading session…" />;
 

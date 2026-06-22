@@ -189,6 +189,54 @@ func GetTransactionHistory(billingService *service.BillingService, logger *zap.L
 	}
 }
 
+// GetUserWallet returns a user's primary (USDC) wallet by user id.
+func GetUserWallet(billingService *service.BillingService, logger *zap.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := chi.URLParam(r, "userID")
+		if userID == "" {
+			writeErrorResponse(w, http.StatusBadRequest, "User ID is required", nil)
+			return
+		}
+
+		wallet, err := billingService.GetUserWallet(r.Context(), userID)
+		if err != nil {
+			logger.Error("Failed to get user wallet", zap.String("user_id", userID), zap.Error(err))
+			if billingErr, ok := err.(*models.BillingError); ok {
+				writeErrorResponse(w, getHTTPStatusFromBillingError(billingErr), billingErr.Message, err)
+			} else {
+				writeErrorResponse(w, http.StatusInternalServerError, "Failed to get user wallet", err)
+			}
+			return
+		}
+
+		writeJSONResponse(w, http.StatusOK, wallet)
+	}
+}
+
+// GetUserBalance returns a user's primary wallet balance by user id.
+func GetUserBalance(billingService *service.BillingService, logger *zap.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := chi.URLParam(r, "userID")
+		if userID == "" {
+			writeErrorResponse(w, http.StatusBadRequest, "User ID is required", nil)
+			return
+		}
+
+		balance, err := billingService.GetUserBalance(r.Context(), userID)
+		if err != nil {
+			logger.Error("Failed to get user balance", zap.String("user_id", userID), zap.Error(err))
+			if billingErr, ok := err.(*models.BillingError); ok {
+				writeErrorResponse(w, getHTTPStatusFromBillingError(billingErr), billingErr.Message, err)
+			} else {
+				writeErrorResponse(w, http.StatusInternalServerError, "Failed to get user balance", err)
+			}
+			return
+		}
+
+		writeJSONResponse(w, http.StatusOK, balance)
+	}
+}
+
 // Helper functions
 
 // writeJSONResponse writes a JSON response

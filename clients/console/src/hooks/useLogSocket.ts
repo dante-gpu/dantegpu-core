@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { gatewayWsUrl } from "@/lib/api";
+import { gatewayWsUrl, getToken } from "@/lib/api";
 import type { LogLine } from "@/components/LogStream";
 
 export type SocketStatus = "connecting" | "open" | "closed";
@@ -47,7 +47,11 @@ export function useLogSocket(enabled: boolean, maxLines = 300) {
       setStatus("connecting");
       let ws: WebSocket;
       try {
-        ws = new WebSocket(gatewayWsUrl("/logs/stream"));
+        // Browsers can't set an Authorization header on a WS handshake, so the
+        // gateway authenticates the log stream via a `token` query param.
+        const token = getToken();
+        const url = gatewayWsUrl("/logs/stream") + (token ? `?token=${encodeURIComponent(token)}` : "");
+        ws = new WebSocket(url);
       } catch {
         scheduleRetry();
         return;

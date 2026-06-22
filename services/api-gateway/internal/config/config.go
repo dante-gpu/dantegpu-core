@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -26,6 +27,10 @@ type Config struct {
 	GpuServiceURL     string `yaml:"gpu_service_url"`
 	BillingServiceURL string `yaml:"billing_service_url"`
 	SchedulerURL      string `yaml:"scheduler_service_url"`
+
+	// Origins permitted to open the log-stream WebSocket. Defends against
+	// cross-site WebSocket hijacking. Override via CONSOLE_ORIGINS (comma-separated).
+	ConsoleOrigins []string `yaml:"console_origins"`
 }
 
 // LoadConfig reads configuration from the given YAML file path.
@@ -46,6 +51,7 @@ func LoadConfig(path string) (*Config, error) {
 		GpuServiceURL:     "http://localhost:8084",
 		BillingServiceURL: "http://localhost:8082",
 		SchedulerURL:      "http://localhost:8084",
+		ConsoleOrigins:    []string{"http://localhost:5273", "http://localhost:5173", "http://localhost:3000"},
 	}
 
 	// I need to check if the config file exists.
@@ -126,6 +132,18 @@ func overrideFromEnv(cfg *Config) {
 	if v := os.Getenv("SCHEDULER_SERVICE_URL"); v != "" {
 		cfg.SchedulerURL = v
 	}
+	if v := os.Getenv("CONSOLE_ORIGINS"); v != "" {
+		parts := strings.Split(v, ",")
+		origins := make([]string, 0, len(parts))
+		for _, p := range parts {
+			if t := strings.TrimSpace(p); t != "" {
+				origins = append(origins, t)
+			}
+		}
+		if len(origins) > 0 {
+			cfg.ConsoleOrigins = origins
+		}
+	}
 	// Note: Overriding time.Duration from env vars would require parsing.
 	// For now, keeping it simple and only overriding string/simple types.
 }
@@ -168,6 +186,9 @@ func applyDefaultsIfNotSet(cfg *Config, defaults *Config) {
 	}
 	if cfg.SchedulerURL == "" {
 		cfg.SchedulerURL = defaults.SchedulerURL
+	}
+	if len(cfg.ConsoleOrigins) == 0 {
+		cfg.ConsoleOrigins = defaults.ConsoleOrigins
 	}
 }
 

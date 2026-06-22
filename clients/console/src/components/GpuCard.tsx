@@ -41,10 +41,19 @@ export function GpuCard({ gpu, onRent }: { gpu: GpuListing; onRent: (gpu: GpuLis
 
       <div className="mt-5 flex items-end justify-between border-t border-ink-700 pt-4">
         <div>
-          <div className="nums text-xl font-semibold text-ember-300">{usdc(gpu.price_usdc_hour)}</div>
-          <div className="text-xs text-ink-400">per hour</div>
+          {gpu.price_usdc_hour > 0 ? (
+            <>
+              <div className="nums text-xl font-semibold text-ember-300">{usdc(gpu.price_usdc_hour)}</div>
+              <div className="text-xs text-ink-400">per hour</div>
+            </>
+          ) : (
+            <>
+              <div className="text-xl font-semibold text-ink-300">Rate n/a</div>
+              <div className="text-xs text-ink-400">pricing unavailable</div>
+            </>
+          )}
         </div>
-        <Button size="sm" disabled={!available} onClick={() => onRent(gpu)}>
+        <Button size="sm" disabled={!available || gpu.price_usdc_hour <= 0} onClick={() => onRent(gpu)}>
           {available ? "Rent now" : "Unavailable"}
         </Button>
       </div>
