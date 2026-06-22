@@ -1,19 +1,23 @@
 -- Consolidated Initialization Script for DanteGPU Platform PostgreSQL Databases
+--
+-- Runs once via the postgres docker-entrypoint (/docker-entrypoint-initdb.d) on a
+-- fresh data volume, as the POSTGRES_USER superuser against POSTGRES_DB.
+--
+-- IMPORTANT: CREATE DATABASE cannot run inside a transaction block or a PL/pgSQL
+-- function. The previous version wrapped it in a function and errored the moment
+-- it tried to create the first missing database (dante_billing), leaving the
+-- billing/registry/scheduler/storage databases uncreated and their services
+-- unable to connect ("failed to connect user=dante_user"). We instead use the
+-- psql \gexec pattern, which executes each generated statement outside any
+-- transaction and is idempotent via the NOT EXISTS guard.
 
--- Ensure the script can be run multiple times without error (idempotency)
-
--- 1. Create the primary user if it doesn't exist and set password
--- Note: CREATE USER IF NOT EXISTS is not standard SQL for all Postgres versions directly in a script.
--- We'll try to create and handle potential errors, or assume a superuser runs this.
--- For Docker entrypoint, it usually runs as postgres user.
-
+-- 1. Ensure the primary login role exists with the expected password.
 DO
 $do$
 BEGIN
    IF NOT EXISTS (
       SELECT FROM pg_catalog.pg_roles
       WHERE  rolname = 'dante_user') THEN
-
       CREATE ROLE dante_user LOGIN PASSWORD 'dante_password';
    ELSE
       ALTER ROLE dante_user WITH LOGIN PASSWORD 'dante_password';
@@ -21,36 +25,33 @@ BEGIN
 END
 $do$;
 
--- 2. Create databases if they don't exist and assign ownership
+-- 2. Create each service database (owned by dante_user) only if it is absent.
+--    \gexec runs the produced CREATE DATABASE statements one per row, outside a
+--    transaction, so this succeeds where the old function-based approach failed.
+SELECT format('CREATE DATABASE %I OWNER %I', d, 'dante_user')
+FROM unnest(ARRAY[
+   'dante_auth',
+   'dante_billing',
+   'dante_registry',
+   'dante_scheduler',
+   'dante_storage'
+]) AS d
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = d)
+\gexec
 
--- Function to create database if not exists and grant ownership
-CREATE OR REPLACE FUNCTION create_database_if_not_exists(dbname text, owner_role text) RETURNS void AS $$
+-- 3. Ensure ownership is correct for any pre-existing database (e.g. dante_auth,
+--    created by POSTGRES_DB). ALTER DATABASE is transaction-safe, unlike CREATE.
+DO
+$do$
+DECLARE
+   d text;
 BEGIN
-    IF NOT EXISTS (SELECT FROM pg_database WHERE datname = dbname) THEN
-        EXECUTE format('CREATE DATABASE %I', dbname);
-    END IF;
-    EXECUTE format('ALTER DATABASE %I OWNER TO %I', dbname, owner_role);
-END;
-$$ LANGUAGE plpgsql;
+   FOREACH d IN ARRAY ARRAY['dante_auth','dante_billing','dante_registry','dante_scheduler','dante_storage'] LOOP
+      IF EXISTS (SELECT 1 FROM pg_database WHERE datname = d) THEN
+         EXECUTE format('ALTER DATABASE %I OWNER TO %I', d, 'dante_user');
+      END IF;
+   END LOOP;
+END
+$do$;
 
--- Create databases for each service
-SELECT create_database_if_not_exists('dante_auth', 'dante_user');
-SELECT create_database_if_not_exists('dante_billing', 'dante_user');
-SELECT create_database_if_not_exists('dante_registry', 'dante_user');
-SELECT create_database_if_not_exists('dante_scheduler', 'dante_user');
-SELECT create_database_if_not_exists('dante_storage', 'dante_user');
-
--- (Optional) Grant all privileges on these databases to the user if ownership is not enough
--- GRANT ALL PRIVILEGES ON DATABASE dante_auth TO dante_user;
--- GRANT ALL PRIVILEGES ON DATABASE dante_billing TO dante_user;
--- GRANT ALL PRIVILEGES ON DATABASE dante_registry TO dante_user;
--- GRANT ALL PRIVILEGES ON DATABASE dante_scheduler TO dante_user;
--- GRANT ALL PRIVILEGES ON DATABASE dante_storage TO dante_user;
-
--- 3. (Optional) Create extensions if needed in specific databases
--- Example for dante_auth if it needs pgcrypto or uuid-ossp
--- \c dante_auth
--- CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
--- CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
-SELECT 'DanteGPU databases and user initialization complete.' AS status; 
+SELECT 'DanteGPU databases and user initialization complete.' AS status;
