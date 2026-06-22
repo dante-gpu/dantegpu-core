@@ -230,7 +230,7 @@ func (h *TwoFactorHandler) Verify2FALogin(w http.ResponseWriter, r *http.Request
 	}
 
 	// Get 2FA session
-	var userID, email string
+	var userID string
 	var expiresAt time.Time
 	err := h.db.QueryRowContext(ctx, `
 		SELECT user_id, expires_at

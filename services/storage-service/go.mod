@@ -1,11 +1,11 @@
 module github.com/dante-gpu/dante-backend/storage-service
 
-go 1.23.8
+go 1.24.0
 
-toolchain go1.24.0
+toolchain go1.24.4
 
 require (
-	github.com/go-chi/chi/v5 v5.2.1
+	github.com/go-chi/chi/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/consul/api v1.32.1
 	github.com/minio/minio-go/v7 v7.0.91
@@ -37,9 +37,9 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
-	golang.org/x/crypto v0.36.0 // indirect
+	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
-	golang.org/x/net v0.38.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/text v0.32.0 // indirect
 )

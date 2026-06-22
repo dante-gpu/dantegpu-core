@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dantegpu/auth-service/pkg/jwt"
+	"auth-service/pkg/jwt"
 )
 
 // AuthMiddleware handles JWT authentication

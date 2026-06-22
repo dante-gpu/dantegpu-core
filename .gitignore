@@ -330,3 +330,12 @@ grafana-data/
 postgres-data/
 loki-data/
 alertmanager-data/
+
+# Compiled Go binaries (build artifacts, never commit)
+/gpu-rental-client
+/provider
+/providerd
+/rental
+/terminal-streaming-service
+/clients/provider-daemon/provider
+/services/gpu-service/gpu-service

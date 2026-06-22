@@ -70,6 +70,10 @@ type RegistrationConfig struct {
 type EmailService interface {
 	SendVerificationEmail(ctx context.Context, email, token, firstName string) error
 	SendWelcomeEmail(ctx context.Context, email, firstName string) error
+	SendPasswordResetEmail(ctx context.Context, email, token, firstName string) error
+	SendPasswordChangedEmail(ctx context.Context, email, firstName string) error
+	Send2FACodeEmail(ctx context.Context, email, code, firstName string) error
+	SendLoginAlertEmail(ctx context.Context, email, firstName, ipAddress, location string) error
 }
 
 // NewRegistrationHandler creates a new registration handler

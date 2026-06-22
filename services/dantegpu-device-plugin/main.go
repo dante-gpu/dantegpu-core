@@ -89,8 +89,9 @@ func (dp *DanteGPUDevicePlugin) GetPreferredAllocation(ctx context.Context, r *p
 	response := &pluginapi.PreferredAllocationResponse{}
 	
 	for _, req := range r.ContainerRequests {
-		// Simple allocation strategy: allocate devices in order
-		allocatedDevices := make([]string, 0, req.MustIncludeDeviceIDs)
+		// Simple allocation strategy: allocate devices in order. The capacity is
+		// the count of must-include device IDs (MustIncludeDeviceIDs is a []string).
+		allocatedDevices := make([]string, 0, len(req.MustIncludeDeviceIDs))
 		
 		// First, include must-have devices
 		allocatedDevices = append(allocatedDevices, req.MustIncludeDeviceIDs...)

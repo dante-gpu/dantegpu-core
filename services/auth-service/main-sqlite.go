@@ -1,3 +1,8 @@
+//go:build sqlite
+
+// SQLite-backed variant of the auth service for local development. Excluded from
+// the default build (which uses the Postgres main.go) to avoid duplicate
+// declarations; build with `-tags sqlite` to use it.
 package main
 
 import (

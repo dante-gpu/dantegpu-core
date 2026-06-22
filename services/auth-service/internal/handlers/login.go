@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dantegpu/auth-service/pkg/jwt"
+	"auth-service/pkg/jwt"
 	"golang.org/x/crypto/bcrypt"
 )
 

@@ -121,7 +121,7 @@ func main() {
 			zap.Int("overall_status", healthStatus),
 		)
 		w.WriteHeader(healthStatus)
-		fmt.Fprintf(w, strings.TrimSpace(healthMsg))
+		fmt.Fprint(w, strings.TrimSpace(healthMsg))
 	})
 
 	// == Log Streaming Route ==
