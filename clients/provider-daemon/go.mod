@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.4
 
 require (
-	github.com/docker/docker v28.2.2+incompatible
+	github.com/docker/docker v28.3.3+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/nats-io/nats.go v1.31.0
 	github.com/shirou/gopsutil/v3 v3.24.5

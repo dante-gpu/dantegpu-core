@@ -368,35 +368,17 @@ func (d *Detector) detectAppleGPUs(ctx context.Context) ([]GPUInfo, error) {
 					gpu.Model = name
 				}
 
-				// Apple Silicon GPUs share system memory
-				// We'll estimate based on the chip type
-				if strings.Contains(gpu.Name, "M1") {
-					if strings.Contains(gpu.Name, "Ultra") {
-						gpu.VRAMTotal = 128 * 1024 // 128GB unified memory
-					} else if strings.Contains(gpu.Name, "Max") {
-						gpu.VRAMTotal = 64 * 1024 // 64GB unified memory
-					} else {
-						gpu.VRAMTotal = 16 * 1024 // 16GB unified memory
-					}
-				} else if strings.Contains(gpu.Name, "M2") {
-					if strings.Contains(gpu.Name, "Ultra") {
-						gpu.VRAMTotal = 192 * 1024 // 192GB unified memory
-					} else if strings.Contains(gpu.Name, "Max") {
-						gpu.VRAMTotal = 96 * 1024 // 96GB unified memory
-					} else {
-						gpu.VRAMTotal = 24 * 1024 // 24GB unified memory
-					}
-				} else if strings.Contains(gpu.Name, "M3") {
-					if strings.Contains(gpu.Name, "Ultra") {
-						gpu.VRAMTotal = 256 * 1024 // 256GB unified memory
-					} else if strings.Contains(gpu.Name, "Max") {
-						gpu.VRAMTotal = 128 * 1024 // 128GB unified memory
-					} else {
-						gpu.VRAMTotal = 32 * 1024 // 32GB unified memory
-					}
+				// Apple Silicon shares unified memory, so the addressable GPU
+				// memory is the machine's total physical RAM. Read it directly via
+				// sysctl rather than guessing per-chip: the old hardcoded table
+				// missed newer chips entirely (e.g. any M4), leaving VRAM at 0.
+				if unifiedMB := appleUnifiedMemoryMB(ctx); unifiedMB > 0 {
+					gpu.VRAMTotal = unifiedMB
+				} else {
+					gpu.VRAMTotal = appleEstimateVRAMByName(gpu.Name)
 				}
 
-				gpu.VRAMFree = gpu.VRAMTotal // Simplified - would need actual memory usage
+				gpu.VRAMFree = gpu.VRAMTotal // Simplified - would need live allocation data
 				gpu.VRAMUsed = 0
 
 				gpus = append(gpus, gpu)
@@ -405,6 +387,54 @@ func (d *Detector) detectAppleGPUs(ctx context.Context) ([]GPUInfo, error) {
 	}
 
 	return gpus, nil
+}
+
+// appleUnifiedMemoryMB returns the machine's total physical memory in MB via
+// sysctl hw.memsize. On Apple Silicon the GPU shares this unified memory, so it
+// is the most accurate "VRAM" figure available. Returns 0 if sysctl fails.
+func appleUnifiedMemoryMB(ctx context.Context) uint64 {
+	out, err := exec.CommandContext(ctx, "sysctl", "-n", "hw.memsize").Output()
+	if err != nil {
+		return 0
+	}
+	bytes, err := strconv.ParseUint(strings.TrimSpace(string(out)), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return bytes / (1024 * 1024)
+}
+
+// appleEstimateVRAMByName is a coarse per-chip fallback used only when sysctl is
+// unavailable. It mirrors typical base unified-memory configurations and is
+// intentionally conservative for unknown/newer chips.
+func appleEstimateVRAMByName(name string) uint64 {
+	isMax := strings.Contains(name, "Max")
+	isUltra := strings.Contains(name, "Ultra")
+	switch {
+	case strings.Contains(name, "M1"):
+		if isUltra {
+			return 128 * 1024
+		} else if isMax {
+			return 64 * 1024
+		}
+		return 16 * 1024
+	case strings.Contains(name, "M2"):
+		if isUltra {
+			return 192 * 1024
+		} else if isMax {
+			return 96 * 1024
+		}
+		return 24 * 1024
+	case strings.Contains(name, "M3"), strings.Contains(name, "M4"):
+		if isUltra {
+			return 256 * 1024
+		} else if isMax {
+			return 128 * 1024
+		}
+		return 32 * 1024
+	default:
+		return 16 * 1024
+	}
 }
 
 // detectIntelGPUs detects Intel GPUs via sysfs (vendor id 0x8086). This works
